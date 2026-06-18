@@ -180,6 +180,7 @@ Future<void> _runExportInIsolate(Map<String, Object?> request) async {
   final outputDocument = PdfDocument();
 
   try {
+    outputDocument.pageSettings.margins.all = 0;
     final pageCount = sourceDocument.pages.count;
     for (var index = 0; index < pageCount; index++) {
       final sourcePage = sourceDocument.pages[index];
@@ -189,9 +190,15 @@ Future<void> _runExportInIsolate(Map<String, Object?> request) async {
 
       for (final cropRect in cropRects.where((rect) => rect.isValid)) {
         final cropBox = _cropToSourceRectInIsolate(cropRect, baseSize);
-        outputDocument.pageSettings.size = Size(cropBox.width, cropBox.height);
-        outputDocument.pageSettings.margins.all = 0;
-        final newPage = outputDocument.pages.add();
+        final section = outputDocument.sections!.add();
+        section.pageSettings = PdfPageSettings(
+          Size(cropBox.width, cropBox.height),
+          cropBox.width >= cropBox.height
+              ? PdfPageOrientation.landscape
+              : PdfPageOrientation.portrait,
+        );
+        section.pageSettings.margins.all = 0;
+        final newPage = section.pages.add();
         newPage.graphics.drawPdfTemplate(
           template,
           Offset(-cropBox.left, -cropBox.top),

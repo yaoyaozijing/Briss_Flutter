@@ -536,13 +536,6 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
                   borderRadius: BorderRadius.circular(999),
                   child: LinearProgressIndicator(value: progress),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  '导出期间仍可继续浏览当前界面。',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
               ],
               if (isDone && !Platform.isAndroid) ...[
                 const SizedBox(height: 14),
