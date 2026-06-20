@@ -1100,155 +1100,157 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
           title: Text(l10n.regroupSettings),
           content: SizedBox(
             width: 420,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ValueListenableBuilder<bool>(
-                  valueListenable: oddEven,
-                  builder: (context, value, child) {
-                    return SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(l10n.separateOddEven),
-                      subtitle: Text(l10n.separateOddEvenDescription),
-                      value: value,
-                      onChanged: (next) => oddEven.value = next,
-                    );
-                  },
-                ),
-                const SizedBox(height: 10),
-                Text(l10n.smartGroupingLevel),
-                const SizedBox(height: 8),
-                ValueListenableBuilder<SmartGroupingLevel>(
-                  valueListenable: smartGroupingLevel,
-                  builder: (context, value, child) {
-                    return Wrap(
-                      spacing: 10,
-                      runSpacing: 10,
-                      children: SmartGroupingLevel.values.map((level) {
-                        return ChoiceChip(
-                          label: Text(_smartGroupingLevelLabel(level)),
-                          selected: value == level,
-                          onSelected: (_) => smartGroupingLevel.value = level,
-                        );
-                      }).toList(),
-                    );
-                  },
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _smartGroupingLevelDescription(smartGroupingLevel.value),
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                ),
-                const SizedBox(height: 14),
-                Text(l10n.edgeFilterPercentage),
-                const SizedBox(height: 6),
-                Text(
-                  l10n.edgeFilterDescription,
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                ),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton(
-                      onPressed: () => applyEdgeFilterPreset(
-                        left: 0,
-                        top: 0.06,
-                        right: 0,
-                        bottom: 0.06,
-                      ),
-                      child: Text(l10n.ignoreHeaderFooter),
-                    ),
-                    OutlinedButton(
-                      onPressed: () => applyEdgeFilterPreset(
-                        left: 0.10,
-                        top: 0,
-                        right: 0.10,
-                        bottom: 0,
-                      ),
-                      child: Text(l10n.ignoreSideMarks),
-                    ),
-                    OutlinedButton(
-                      onPressed: () => applyEdgeFilterPreset(
-                        left: 0.04,
-                        top: 0.05,
-                        right: 0.04,
-                        bottom: 0.05,
-                      ),
-                      child: Text(l10n.gentleFilter),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: leftFilterController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(
-                          labelText: l10n.leftPercent,
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: topFilterController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(
-                          labelText: l10n.topPercent,
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: rightFilterController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(
-                          labelText: l10n.rightPercent,
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: bottomFilterController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(
-                          labelText: l10n.bottomPercent,
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 14),
-                Text(l10n.excludedPages),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: excludedText,
-                  decoration: InputDecoration(
-                    hintText: l10n.pageRangeExample,
-                    border: OutlineInputBorder(),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ValueListenableBuilder<bool>(
+                    valueListenable: oddEven,
+                    builder: (context, value, child) {
+                      return SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(l10n.separateOddEven),
+                        subtitle: Text(l10n.separateOddEvenDescription),
+                        value: value,
+                        onChanged: (next) => oddEven.value = next,
+                      );
+                    },
                   ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  l10n.excludedPagesDescription,
-                  style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                ),
-              ],
+                  const SizedBox(height: 10),
+                  Text(l10n.smartGroupingLevel),
+                  const SizedBox(height: 8),
+                  ValueListenableBuilder<SmartGroupingLevel>(
+                    valueListenable: smartGroupingLevel,
+                    builder: (context, value, child) {
+                      return Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: SmartGroupingLevel.values.map((level) {
+                          return ChoiceChip(
+                            label: Text(_smartGroupingLevelLabel(level)),
+                            selected: value == level,
+                            onSelected: (_) => smartGroupingLevel.value = level,
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _smartGroupingLevelDescription(smartGroupingLevel.value),
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(l10n.edgeFilterPercentage),
+                  const SizedBox(height: 6),
+                  Text(
+                    l10n.edgeFilterDescription,
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton(
+                        onPressed: () => applyEdgeFilterPreset(
+                          left: 0,
+                          top: 0.06,
+                          right: 0,
+                          bottom: 0.06,
+                        ),
+                        child: Text(l10n.ignoreHeaderFooter),
+                      ),
+                      OutlinedButton(
+                        onPressed: () => applyEdgeFilterPreset(
+                          left: 0.10,
+                          top: 0,
+                          right: 0.10,
+                          bottom: 0,
+                        ),
+                        child: Text(l10n.ignoreSideMarks),
+                      ),
+                      OutlinedButton(
+                        onPressed: () => applyEdgeFilterPreset(
+                          left: 0.04,
+                          top: 0.05,
+                          right: 0.04,
+                          bottom: 0.05,
+                        ),
+                        child: Text(l10n.gentleFilter),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: leftFilterController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: InputDecoration(
+                            labelText: l10n.leftPercent,
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: topFilterController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: InputDecoration(
+                            labelText: l10n.topPercent,
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: rightFilterController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: InputDecoration(
+                            labelText: l10n.rightPercent,
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: bottomFilterController,
+                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          decoration: InputDecoration(
+                            labelText: l10n.bottomPercent,
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 14),
+                  Text(l10n.excludedPages),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: excludedText,
+                    decoration: InputDecoration(
+                      hintText: l10n.pageRangeExample,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    l10n.excludedPagesDescription,
+                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                  ),
+                ],
+              ),
             ),
           ),
           actions: [
