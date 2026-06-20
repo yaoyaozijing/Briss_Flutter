@@ -892,7 +892,24 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
               ? _AndroidExportAction.save
               : _AndroidExportAction.share,
         );
-      } else {
+        } else if (Platform.isIOS) {
+            final tempPath = await _controller.createTemporaryExportPath();
+            if (tempPath == null) {
+              return;
+            }
+
+            try {
+              await _controller.export(destinationPath: tempPath);
+
+              await _performIOSExport(filePath: tempPath);
+
+              _controller.dismissExportFeedback();
+            } finally {
+              await _controller.deleteTemporaryExport(tempPath);
+            }
+
+            return;
+        } else {
         final destinationPath = await _resolveExportDestinationPath();
         if (destinationPath == null) {
           return;
@@ -973,7 +990,6 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
   }
 
   Future<void> _performAndroidExport(_AndroidExportAction action) async {
-    final l10n = context.l10n;
     if (action == _AndroidExportAction.save) {
       final destinationUri = await _controller.createAndroidDocumentUri(
         fileName: _suggestedOutputFileName(),
@@ -998,11 +1014,31 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
         ),
       );
       _controller.dismissExportFeedback();
-      _showMessage(l10n.exportShareOpened);
     } finally {
       await _controller.deleteTemporaryExport(outputPath);
     }
   }
+
+  Future<void> _performIOSExport({
+    required String filePath,
+  }) async {
+    final renderBox = context.findRenderObject() as RenderBox?;
+    final size = renderBox?.size ?? Size.zero;
+    final origin = Rect.fromLTWH(
+      size.width - 1,
+      0,
+      1,
+      1,
+    );
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(filePath, mimeType: 'application/pdf')],
+        title: _suggestedOutputFileName(),
+        sharePositionOrigin: origin
+      ),
+    );
+  }
+
 
   Future<String?> _resolveExportDestinationPath() async {
     final result = await FilePicker.saveFile(
