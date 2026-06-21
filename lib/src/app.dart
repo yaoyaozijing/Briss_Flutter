@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -60,12 +61,14 @@ class ProCropperPdfApp extends StatelessWidget {
               if (!Platform.isMacOS) {
                 return content;
               }
-              return SafeArea(
-                top: true,
-                left: false,
-                right: false,
-                bottom: false,
-                child: content,
+              final mediaQuery = MediaQuery.of(context);
+              final topInset = math.max(20.0, mediaQuery.viewPadding.top);
+              return MediaQuery(
+                data: mediaQuery.removePadding(removeTop: true),
+                child: Padding(
+                  padding: EdgeInsets.only(top: topInset),
+                  child: content,
+                ),
               );
             },
             home: PdfCropApp(
