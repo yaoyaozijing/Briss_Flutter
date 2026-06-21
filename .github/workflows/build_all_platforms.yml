@@ -20,7 +20,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Resolve Build Metadata
         shell: bash
@@ -63,7 +63,7 @@ jobs:
           mv app-x86_64-release.apk "${APP_SLUG}-${BUILD_SUFFIX}-android-x86_64.apk"
 
       - name: Upload Android Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: android-artifacts
           path: |
@@ -76,7 +76,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Resolve Build Metadata
         shell: bash
@@ -125,7 +125,7 @@ jobs:
           tar -czf "${APP_SLUG}-${BUILD_SUFFIX}-linux-x64.tar.gz" bundle
 
       - name: Upload Linux Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: linux-artifacts
           path: build/linux/x64/release/${{ env.APP_SLUG }}-*.tar.gz
@@ -137,7 +137,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Resolve Build Metadata
         shell: powershell
@@ -190,7 +190,7 @@ jobs:
             -Force
 
       - name: Upload Windows Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: windows-artifacts
           path: |
@@ -204,7 +204,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Resolve Build Metadata
         shell: bash
@@ -235,16 +235,28 @@ jobs:
       - name: Build macOS App
         run: flutter build macos --release
 
+      - name: Resolve macOS App Bundle Name
+        shell: bash
+        run: |
+          APP_BUNDLE_PATH="$(find build/macos/Build/Products/Release -maxdepth 1 -name '*.app' -print -quit)"
+          if [[ -z "$APP_BUNDLE_PATH" ]]; then
+            echo "No .app bundle found in build/macos/Build/Products/Release"
+            exit 1
+          fi
+          APP_BUNDLE_NAME="$(basename "$APP_BUNDLE_PATH")"
+          echo "APP_BUNDLE_PATH=$APP_BUNDLE_PATH" >> "$GITHUB_ENV"
+          echo "APP_BUNDLE_NAME=$APP_BUNDLE_NAME" >> "$GITHUB_ENV"
+
       - name: Package macOS ZIP
         run: |
           cd build/macos/Build/Products/Release
-          ditto -c -k --sequesterRsrc --keepParent Runner.app "${APP_SLUG}-${BUILD_SUFFIX}-macos.zip"
+          ditto -c -k --sequesterRsrc --keepParent "${APP_BUNDLE_NAME}" "${APP_SLUG}-${BUILD_SUFFIX}-macos.zip"
 
       - name: Package macOS DMG
         run: |
           cd build/macos/Build/Products/Release
           mkdir -p dmg-root
-          cp -R Runner.app dmg-root/ProCropper\ PDF.app
+          cp -R "${APP_BUNDLE_NAME}" "dmg-root/${APP_BUNDLE_NAME}"
           hdiutil create \
             -volname "ProCropper PDF" \
             -srcfolder dmg-root \
@@ -253,7 +265,7 @@ jobs:
             "${APP_SLUG}-${BUILD_SUFFIX}-macos.dmg"
 
       - name: Upload macOS Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: macos-artifacts
           path: |
@@ -267,7 +279,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Resolve Build Metadata
         shell: bash
@@ -303,7 +315,7 @@ jobs:
           zip -r "${APP_SLUG}-${BUILD_SUFFIX}-ios-unsigned.ipa" Payload
 
       - name: Upload iOS Artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ios-artifacts
           path: build/ios/ipa/${{ env.APP_SLUG }}-*.ipa
@@ -322,7 +334,7 @@ jobs:
 
     steps:
       - name: Download All Artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           path: release-artifacts
 
