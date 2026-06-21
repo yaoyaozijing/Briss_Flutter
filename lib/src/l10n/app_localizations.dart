@@ -29,7 +29,59 @@ class AppLocalizations {
   String get tips => isZh ? '提示' : 'Tip';
   String get processing => isZh ? '正在处理' : 'Processing';
   String get processingTask => isZh ? '正在处理任务...' : 'Processing task...';
-  String get editPdf => isZh ? '编辑 PDF' : 'Edit PDF';
+  String get cropPdf => isZh ? '裁切 PDF' : 'Crop PDF';
+  String get batchCrop => isZh ? '批量裁边' : 'Batch Crop';
+  String get batchCropDesktopOnly => isZh
+      ? '批量裁边目前仅支持桌面端。'
+      : 'Batch crop is currently available on desktop only.';
+  String get batchCropRecursive => isZh
+      ? '支持递归子目录，并保持目录结构导出'
+      : 'Include subfolders and preserve folder structure on export';
+  String get batchCropRecursiveDescription => isZh
+      ? '开启后会递归扫描子目录，并按原有相对路径导出裁边后的 PDF。'
+      : 'When enabled, subfolders are scanned recursively and cropped PDFs keep their relative paths.';
+  String get useOriginalFileNameForExport => isZh
+      ? '导出时使用原文件名'
+      : 'Use Original File Name on Export';
+  String get useOriginalFileNameForExportDescription => isZh
+      ? '开启后，导出文件会直接使用原 PDF 文件名，不再自动追加“裁边后”后缀。'
+      : 'When enabled, exports keep the original PDF file name instead of appending a cropped suffix.';
+  String get selectBatchInputDirectory => isZh
+      ? '选择待处理目录'
+      : 'Select Input Folder';
+  String get selectBatchOutputDirectory => isZh
+      ? '选择导出目录'
+      : 'Select Output Folder';
+  String get batching => isZh ? '批量处理中' : 'Batch Processing';
+  String get batchPreparing => isZh
+      ? '正在准备批量裁边任务...'
+      : 'Preparing batch crop task...';
+  String batchScanningDirectory(String path) => isZh
+      ? '正在扫描目录：$path'
+      : 'Scanning folder: $path';
+  String batchNoPdfFound(String path) => isZh
+      ? '所选目录中没有 PDF 文件：$path'
+      : 'No PDF files were found in: $path';
+  String batchProcessingFile(
+    int current,
+    int total,
+    String fileName,
+  ) => isZh
+      ? '正在处理第 $current / $total 个文件：$fileName'
+      : 'Processing file $current / $total: $fileName';
+  String batchCompleted(int successCount, int failedCount) => isZh
+      ? '批量裁边完成，成功 $successCount 个，失败 $failedCount 个。'
+      : 'Batch crop finished. $successCount succeeded, $failedCount failed.';
+  String batchFailedWithDetails(String summary) => isZh
+      ? '批量裁边失败：$summary'
+      : 'Batch crop failed: $summary';
+  String batchPartialFailureSummary(
+    int successCount,
+    int failedCount,
+    String details,
+  ) => isZh
+      ? '批量裁边完成，成功 $successCount 个，失败 $failedCount 个。\n$details'
+      : 'Batch crop finished. $successCount succeeded, $failedCount failed.\n$details';
   String get releaseToImportPdf =>
       isZh ? '松开即可导入 PDF' : 'Release to import PDF';
   String get dropPdfToOpen => isZh
@@ -43,6 +95,23 @@ class AppLocalizations {
       : 'Pick a PDF to start editing.';
   String get openPdfFailedPrefix =>
       isZh ? '打开 PDF 失败：' : 'Failed to open PDF: ';
+  String get passwordProtectedPdf =>
+      isZh ? '受密码保护的 PDF' : 'Password-Protected PDF';
+  String passwordRequiredForPdf(String fileName) => isZh
+      ? '请输入“$fileName”的密码。'
+      : 'Enter the password for "$fileName".';
+  String get pdfPassword => isZh ? '密码' : 'Password';
+  String get wrongPdfPassword =>
+      isZh ? '密码错误，请重试。' : 'Incorrect password. Please try again.';
+  String get passwordRequiredToOpenPdf => isZh
+      ? '该 PDF 需要密码才能打开。'
+      : 'This PDF requires a password to open.';
+  String batchPasswordPromptTitle(String fileName) => isZh
+      ? '请输入“$fileName”的密码'
+      : 'Enter password for "$fileName"';
+  String get batchPasswordSkipped => isZh
+      ? '已取消输入密码，跳过该文件。'
+      : 'Password entry was cancelled, and this file was skipped.';
   String get pleaseDropPdf =>
       isZh ? '请拖入一个 PDF 文件。' : 'Please drop a PDF file.';
   String notPdfInLaunchArgs(String path) => isZh
@@ -63,7 +132,7 @@ class AppLocalizations {
   String get open => isZh ? '打开' : 'Open';
   String get reopenPdf => isZh ? '重新打开 PDF' : 'Reopen PDF';
   String get openPdf => isZh ? '打开 PDF' : 'Open PDF';
-  String get openDirectory => isZh ? '打开目录' : 'Open Folder';
+  String get revealFile => isZh ? '定位文件' : 'Reveal File';
   String get exportCompleted => isZh ? '导出完成' : 'Export Complete';
   String get exportFailed => isZh ? '导出失败' : 'Export Failed';
   String get exportingInBackground =>
@@ -95,6 +164,16 @@ class AppLocalizations {
       isZh ? '展开工具栏' : 'Expand Toolbar';
   String get toolMenu => isZh ? '工具菜单' : 'Tools Menu';
   String get toolSection => isZh ? '工具' : 'Tools';
+  String get cropPreview => isZh ? '裁切预览' : 'Crop Preview';
+  String previewPageLabel(int pageNumber) =>
+      isZh ? '第 $pageNumber 页' : 'Page $pageNumber';
+  String get previousPage => isZh ? '上一页' : 'Previous';
+  String get nextPage => isZh ? '下一页' : 'Next';
+  String get pageNumber => isZh ? '页码' : 'Page';
+  String pageCountWithCurrent(int current, int total) =>
+      isZh ? '$current / $total' : '$current / $total';
+  String totalPageCount(int total) =>
+      isZh ? '共 $total 页' : '$total pages total';
   String get zoomOut => isZh ? '缩小' : 'Zoom Out';
   String get zoomIn => isZh ? '放大' : 'Zoom In';
   String get recalculateCurrent => isZh ? '计算当前' : 'Recalculate Current';
@@ -236,10 +315,10 @@ class AppLocalizations {
       : '${fileName.substring(0, fileName.length - 4)}_cropped.pdf';
   String croppedFileNameFallback(String fileName) =>
       isZh ? '${fileName}_裁边后.pdf' : '${fileName}_cropped.pdf';
-  String get openDirectoryUnsupported =>
-      isZh ? '当前平台暂不支持自动打开目录。' : 'Opening the export folder is not supported on this platform.';
-  String openDirectoryFailed(String error) =>
-      '${isZh ? '打开目录失败：' : 'Failed to open folder: '}$error';
+  String get revealFileUnsupported =>
+      isZh ? '当前平台暂不支持定位导出文件。' : 'Revealing the exported file is not supported on this platform.';
+  String revealFileFailed(String error) =>
+      '${isZh ? '定位文件失败：' : 'Failed to reveal file: '}$error';
   String get openPdfUnsupported =>
       isZh ? '当前平台暂不支持自动打开 PDF。' : 'Opening exported PDFs is not supported on this platform.';
   String openPdfFailed(String error) =>
@@ -263,9 +342,14 @@ class AppLocalizations {
   String get themeColors => isZh ? '主题色' : 'Theme Colors';
   String get oledOptimization => isZh ? 'OLED 优化' : 'OLED Optimization';
   String get enableOledOptimization =>
-      isZh ? '启用 OLED 优化' : 'Enable OLED Optimization';
+      isZh ? 'OLED 优化' : 'OLED Optimization';
   String get oledOnlyInDark =>
       isZh ? '仅在深色主题下生效' : 'Only takes effect in dark mode';
+  String get enableEInkOptimization =>
+      isZh ? 'E-ink 优化' : 'E-Ink Optimization';
+  String get eInkOnlyInLight => isZh
+      ? '仅在浅色主题下生效，会关闭动画并切换为白底黑色主题。'
+      : 'Only takes effect in light mode. Disables animations and switches to a white background with pure black accents.';
   String get multiWindowMode => isZh ? '多窗口模式' : 'Multi-Window Mode';
   String get enableMultiWindowMode =>
       isZh ? '启用多窗口模式' : 'Enable Multi-Window Mode';
@@ -284,6 +368,12 @@ class AppLocalizations {
   String get defaultGroupingModeDescription => isZh
       ? '打开 PDF 时默认使用这个智能分组等级。'
       : 'This smart grouping level is used by default when opening PDFs.';
+  String get defaultSeparateOddEvenForNewPdf => isZh
+      ? '默认区分奇偶页'
+      : 'Separate Odd/Even by Default';
+  String get defaultSeparateOddEvenForNewPdfDescription => isZh
+      ? '新打开 PDF 或批量裁边时，默认按奇偶页拆分分组。'
+      : 'New PDFs and batch crop tasks separate odd and even pages by default.';
   String get defaultExportMode =>
       isZh ? '默认导出方式' : 'Default Export Mode';
   String get defaultExportModeDescription => isZh

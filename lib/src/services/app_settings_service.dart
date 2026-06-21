@@ -38,6 +38,7 @@ class AppSettingsService {
     final languageModeIndex = raw['languageMode'] as int?;
     final accentModeIndex = raw['accentMode'] as int?;
     final oledOptimized = raw['oledOptimized'] as bool?;
+    final eInkOptimized = raw['eInkOptimized'] as bool?;
     final multiWindowMode = raw['multiWindowMode'] as bool?;
 
     return AppThemeSettings(
@@ -57,6 +58,7 @@ class AppSettingsService {
           ? AppAccentMode.values[accentModeIndex]
           : AppAccentMode.system,
       oledOptimized: oledOptimized ?? false,
+      eInkOptimized: eInkOptimized ?? false,
       multiWindowMode: multiWindowMode ?? false,
     );
   }
@@ -67,6 +69,7 @@ class AppSettingsService {
       'languageMode': settings.languageMode.index,
       'accentMode': settings.accentMode.index,
       'oledOptimized': settings.oledOptimized,
+      'eInkOptimized': settings.eInkOptimized,
       'multiWindowMode': settings.multiWindowMode,
     });
   }
@@ -78,18 +81,28 @@ class AppSettingsService {
     }
 
     final smartGroupingLevelIndex = raw['defaultSmartGroupingLevel'] as int?;
+    final defaultSeparateOddEven = raw['defaultSeparateOddEven'] as bool?;
+    final batchCropRecursive = raw['batchCropRecursive'] as bool?;
+    final useOriginalFileNameForExport =
+        raw['useOriginalFileNameForExport'] as bool?;
     return AppGroupingSettings(
       defaultSmartGroupingLevel: smartGroupingLevelIndex != null &&
               smartGroupingLevelIndex >= 0 &&
               smartGroupingLevelIndex < SmartGroupingLevel.values.length
           ? SmartGroupingLevel.values[smartGroupingLevelIndex]
           : SmartGroupingLevel.balanced,
+      defaultSeparateOddEven: defaultSeparateOddEven ?? true,
+      batchCropRecursive: batchCropRecursive ?? false,
+      useOriginalFileNameForExport: useOriginalFileNameForExport ?? false,
     );
   }
 
   Future<void> saveGroupingSettings(AppGroupingSettings settings) async {
     await _box?.put(_groupingSettingsKey, <String, Object>{
       'defaultSmartGroupingLevel': settings.defaultSmartGroupingLevel.index,
+      'defaultSeparateOddEven': settings.defaultSeparateOddEven,
+      'batchCropRecursive': settings.batchCropRecursive,
+      'useOriginalFileNameForExport': settings.useOriginalFileNameForExport,
     });
   }
 }

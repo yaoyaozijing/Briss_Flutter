@@ -47,6 +47,10 @@ class ProCropperPdfApp extends StatelessWidget {
               GlobalMaterialLocalizations.delegate,
               GlobalWidgetsLocalizations.delegate,
             ],
+            themeAnimationDuration: _disableThemeAnimations(themeController)
+                ? Duration.zero
+                : kThemeAnimationDuration,
+            themeAnimationCurve: Curves.linear,
             themeMode: themeController.materialThemeMode,
             theme: _buildTheme(
               brightness: Brightness.light,
@@ -95,14 +99,47 @@ class ProCropperPdfApp extends StatelessWidget {
     required Brightness brightness,
     required AppThemeSettings settings,
   }) {
-    final seedColor = _resolveSeedColor(settings.accentMode, brightness);
+    final eInkOptimized =
+        brightness == Brightness.light && settings.eInkOptimized;
+    final seedColor = eInkOptimized
+        ? Colors.black
+        : _resolveSeedColor(settings.accentMode, brightness);
     final baseColorScheme = ColorScheme.fromSeed(
       seedColor: seedColor,
       brightness: brightness,
     );
     final oledOptimized =
         brightness == Brightness.dark && settings.oledOptimized;
-    final colorScheme = oledOptimized
+    final colorScheme = eInkOptimized
+        ? baseColorScheme.copyWith(
+            primary: Colors.black,
+            onPrimary: Colors.white,
+            primaryContainer: const Color(0xFFF2F2F2),
+            onPrimaryContainer: Colors.black,
+            secondary: Colors.black,
+            onSecondary: Colors.white,
+            secondaryContainer: const Color(0xFFCCCCCC),
+            onSecondaryContainer: Colors.black,
+            tertiary: Colors.black,
+            onTertiary: Colors.white,
+            tertiaryContainer: const Color(0xFFAAAAAA),
+            onTertiaryContainer: Colors.black,
+            surface: Colors.white,
+            onSurface: Colors.black,
+            surfaceDim: Colors.white,
+            surfaceBright: Colors.white,
+            surfaceContainerLowest: Colors.white,
+            surfaceContainerLow: Colors.white,
+            surfaceContainer: const Color(0xFFF8F8F8),
+            surfaceContainerHigh: const Color(0xFFF2F2F2),
+            surfaceContainerHighest: const Color(0xFFEDEDED),
+            onSurfaceVariant: Colors.black87,
+            outline: Colors.black54,
+            outlineVariant: Colors.black26,
+            shadow: Colors.black,
+            scrim: Colors.black,
+          )
+        : oledOptimized
         ? baseColorScheme.copyWith(
             surface: const Color(0xFF000000),
             surfaceDim: const Color(0xFF000000),
@@ -147,7 +184,35 @@ class ProCropperPdfApp extends StatelessWidget {
         surfaceTintColor: Colors.transparent,
         foregroundColor: colorScheme.onSurface,
       ),
+      pageTransitionsTheme: _disableThemeAnimationsForSettings(
+        settings,
+        brightness,
+      )
+          ? const PageTransitionsTheme(
+              builders: <TargetPlatform, PageTransitionsBuilder>{
+                TargetPlatform.android: _NoAnimationPageTransitionsBuilder(),
+                TargetPlatform.iOS: _NoAnimationPageTransitionsBuilder(),
+                TargetPlatform.macOS: _NoAnimationPageTransitionsBuilder(),
+                TargetPlatform.windows: _NoAnimationPageTransitionsBuilder(),
+                TargetPlatform.linux: _NoAnimationPageTransitionsBuilder(),
+                TargetPlatform.fuchsia: _NoAnimationPageTransitionsBuilder(),
+              },
+            )
+          : const PageTransitionsTheme(),
     );
+  }
+
+  bool _disableThemeAnimations(ThemeController controller) {
+    final mode = controller.settings.themeMode;
+    return controller.settings.eInkOptimized &&
+        mode != AppThemeMode.dark;
+  }
+
+  bool _disableThemeAnimationsForSettings(
+    AppThemeSettings settings,
+    Brightness brightness,
+  ) {
+    return settings.eInkOptimized && brightness == Brightness.light;
   }
 
   Color _resolveSeedColor(AppAccentMode accentMode, Brightness brightness) {
@@ -167,5 +232,20 @@ class ProCropperPdfApp extends StatelessWidget {
       case AppAccentMode.graphite:
         return const Color(0xFF4A5568);
     }
+  }
+}
+
+class _NoAnimationPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _NoAnimationPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return child;
   }
 }

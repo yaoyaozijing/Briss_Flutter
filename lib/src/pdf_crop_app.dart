@@ -1,7 +1,11 @@
+import 'dart:io';
+
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
+import 'package:pdfrx/pdfrx.dart';
 
 import 'l10n/app_localizations.dart';
 import 'models/app_grouping_settings.dart';
@@ -40,10 +44,17 @@ class _PdfCropAppState extends State<PdfCropApp> {
   bool _handledInitialPdf = false;
   String? _statusMessage;
   AppGroupingSettings _groupingSettings = const AppGroupingSettings();
+  bool _isBatchCropping = false;
+  double? _batchProgress;
+  String? _batchStatus;
 
   bool get _supportsHomeDropTarget =>
       defaultTargetPlatform != TargetPlatform.android &&
       defaultTargetPlatform != TargetPlatform.iOS;
+  bool get _supportsBatchCrop =>
+      defaultTargetPlatform == TargetPlatform.windows ||
+      defaultTargetPlatform == TargetPlatform.macOS ||
+      defaultTargetPlatform == TargetPlatform.linux;
 
   @override
   void initState() {
@@ -189,6 +200,15 @@ class _PdfCropAppState extends State<PdfCropApp> {
               message: _controller.status ?? l10n.processingTask,
               bottom: _statusMessage != null ? 186 : 18,
             ),
+          if (_isBatchCropping)
+            StatusCornerCard(
+              title: l10n.batching,
+              message: _batchStatus ?? l10n.batchPreparing,
+              progress: _batchProgress,
+              bottom: _statusMessage != null
+                  ? (_controller.isBusy ? 354 : 186)
+                  : (_controller.isBusy ? 186 : 18),
+            ),
         ],
       ),
     );
@@ -267,8 +287,16 @@ class _PdfCropAppState extends State<PdfCropApp> {
           FilledButton.icon(
             onPressed: _pickPdfAndOpenEditor,
             icon: const Icon(Icons.upload_file_rounded),
-            label: Text(l10n.editPdf),
+            label: Text(l10n.cropPdf),
           ),
+          if (_supportsBatchCrop) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _isBatchCropping ? null : _runBatchCrop,
+              icon: const Icon(Icons.auto_fix_high_rounded),
+              label: Text(l10n.batchCrop),
+            ),
+          ],
         ],
       ),
     );
@@ -290,6 +318,158 @@ class _PdfCropAppState extends State<PdfCropApp> {
         return;
       }
       _showMessage(context.l10n.openPdfFailedPrefix + error.toString());
+    }
+  }
+
+  Future<void> _runBatchCrop() async {
+    final l10n = context.l10n;
+    if (!_supportsBatchCrop) {
+      _showMessage(l10n.batchCropDesktopOnly);
+      return;
+    }
+
+    final inputDirectory = await _pickDirectory(
+      title: l10n.selectBatchInputDirectory,
+    );
+    if (inputDirectory == null || inputDirectory.isEmpty) {
+      return;
+    }
+
+    final outputDirectory = await _pickDirectory(
+      title: l10n.selectBatchOutputDirectory,
+    );
+    if (outputDirectory == null || outputDirectory.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _isBatchCropping = true;
+      _batchProgress = null;
+      _batchStatus = l10n.batchPreparing;
+      _statusMessage = null;
+    });
+
+    try {
+      setState(() {
+        _batchStatus = l10n.batchScanningDirectory(inputDirectory);
+      });
+
+      final normalizedInputDirectory = p.normalize(p.absolute(inputDirectory));
+      final normalizedOutputDirectory = p.normalize(p.absolute(outputDirectory));
+      final shouldExcludeOutputDirectory =
+          normalizedInputDirectory != normalizedOutputDirectory &&
+          _isPathInsideDirectory(
+            normalizedOutputDirectory,
+            normalizedInputDirectory,
+          );
+      final pdfFiles = Directory(inputDirectory)
+          .listSync(
+            recursive: _groupingSettings.batchCropRecursive,
+            followLinks: false,
+          )
+          .whereType<File>()
+          .where(
+            (file) =>
+                !shouldExcludeOutputDirectory ||
+                !_isPathInsideDirectory(
+                  file.path,
+                  normalizedOutputDirectory,
+                ),
+          )
+          .where((file) => _isPdfPath(file.path))
+          .toList()
+        ..sort((a, b) => a.path.toLowerCase().compareTo(b.path.toLowerCase()));
+
+      if (pdfFiles.isEmpty) {
+        _showMessage(l10n.batchNoPdfFound(inputDirectory));
+        return;
+      }
+
+      var successCount = 0;
+      final failures = <String>[];
+
+      for (var index = 0; index < pdfFiles.length; index++) {
+        final file = pdfFiles[index];
+        final fileName = file.uri.pathSegments.isNotEmpty
+            ? file.uri.pathSegments.last
+            : file.path.split(RegExp(r'[\\/]')).last;
+
+        if (!mounted) {
+          return;
+        }
+
+        setState(() {
+          _batchProgress = index / pdfFiles.length;
+          _batchStatus = l10n.batchProcessingFile(
+            index + 1,
+            pdfFiles.length,
+            fileName,
+          );
+        });
+
+        final batchController = PdfEditorController();
+        try {
+          await batchController.openFile(
+            file.path,
+            initialSettings: ClusterSettings(
+              smartGroupingLevel: _groupingSettings.defaultSmartGroupingLevel,
+              separateOddEven: _groupingSettings.defaultSeparateOddEven,
+            ),
+            passwordProvider: _buildPasswordProvider(
+              file.path,
+              dialogTitle: l10n.batchPasswordPromptTitle(fileName),
+            ),
+          );
+          final outputPath = _buildBatchOutputPath(
+            inputDirectory: normalizedInputDirectory,
+            sourcePath: file.path,
+            outputDirectory: normalizedOutputDirectory,
+          );
+          await Directory(p.dirname(outputPath)).create(recursive: true);
+          await batchController.export(destinationPath: outputPath);
+          successCount++;
+        } catch (error) {
+          failures.add('$fileName: ${_normalizeBatchFailure(error)}');
+        } finally {
+          await batchController.disposeProject();
+          batchController.dispose();
+        }
+      }
+
+      if (!mounted) {
+        return;
+      }
+
+      setState(() {
+        _batchProgress = 1;
+        _batchStatus = l10n.batchCompleted(
+          successCount,
+          failures.length,
+        );
+      });
+
+      if (failures.isEmpty) {
+        _showMessage(l10n.batchCompleted(successCount, 0));
+      } else {
+        _showMessage(
+          l10n.batchPartialFailureSummary(
+            successCount,
+            failures.length,
+            failures.take(5).join('\n'),
+          ),
+        );
+      }
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      _showMessage(l10n.batchFailedWithDetails(error.toString()));
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBatchCropping = false;
+        });
+      }
     }
   }
 
@@ -316,6 +496,7 @@ class _PdfCropAppState extends State<PdfCropApp> {
   }
 
   Future<void> _openPdfAndNavigate(String path) async {
+    final passwordProvider = _buildPasswordProvider(path);
     if (widget.themeController.settings.multiWindowMode &&
         isFlutterWindowingAvailable) {
       final windowController = PdfEditorController();
@@ -324,7 +505,9 @@ class _PdfCropAppState extends State<PdfCropApp> {
           path,
           initialSettings: ClusterSettings(
             smartGroupingLevel: _groupingSettings.defaultSmartGroupingLevel,
+            separateOddEven: _groupingSettings.defaultSeparateOddEven,
           ),
+          passwordProvider: passwordProvider,
         );
         if (!mounted || windowController.project == null) {
           windowController.dispose();
@@ -357,7 +540,9 @@ class _PdfCropAppState extends State<PdfCropApp> {
       path,
       initialSettings: ClusterSettings(
         smartGroupingLevel: _groupingSettings.defaultSmartGroupingLevel,
+        separateOddEven: _groupingSettings.defaultSeparateOddEven,
       ),
+      passwordProvider: passwordProvider,
     );
     if (!mounted || _controller.project == null) {
       return;
@@ -392,6 +577,151 @@ class _PdfCropAppState extends State<PdfCropApp> {
   }
 
   bool _isPdfPath(String path) => path.toLowerCase().endsWith('.pdf');
+
+  String _buildBatchOutputPath({
+    required String inputDirectory,
+    required String sourcePath,
+    required String outputDirectory,
+  }) {
+    final normalizedSourcePath = p.normalize(p.absolute(sourcePath));
+    final relativeSourcePath = p.relative(
+      normalizedSourcePath,
+      from: inputDirectory,
+    );
+    final sourceDirectory = p.dirname(relativeSourcePath);
+    final sourceFileName = p.basename(relativeSourcePath);
+    final outputFileName = _suggestedOutputFileName(sourceFileName);
+    return sourceDirectory == '.' || sourceDirectory.isEmpty
+        ? p.join(outputDirectory, outputFileName)
+        : p.join(outputDirectory, sourceDirectory, outputFileName);
+  }
+
+  Future<String?> _pickDirectory({required String title}) async {
+    if (Platform.isMacOS) {
+      final result = await FilePicker.pickFileAndDirectoryPaths(
+        type: FileType.any,
+      );
+      if (result == null || result.isEmpty) {
+        return null;
+      }
+      final selectedPath = result.first;
+      final entityType = FileSystemEntity.typeSync(selectedPath);
+      if (entityType == FileSystemEntityType.directory) {
+        return selectedPath;
+      }
+      return p.dirname(selectedPath);
+    }
+    return FilePicker.getDirectoryPath(dialogTitle: title);
+  }
+
+  bool _isPathInsideDirectory(String targetPath, String directoryPath) {
+    final normalizedTargetPath = p.normalize(p.absolute(targetPath));
+    final normalizedDirectoryPath = p.normalize(p.absolute(directoryPath));
+    return normalizedTargetPath == normalizedDirectoryPath ||
+        p.isWithin(normalizedDirectoryPath, normalizedTargetPath);
+  }
+
+  String _suggestedOutputFileName(String fileName) {
+    if (_groupingSettings.useOriginalFileNameForExport) {
+      return fileName;
+    }
+    if (fileName.toLowerCase().endsWith('.pdf')) {
+      return AppLocalizations.current.croppedFileName(fileName);
+    }
+    return AppLocalizations.current.croppedFileNameFallback(fileName);
+  }
+
+  PdfPasswordProvider _buildPasswordProvider(
+    String path, {
+    String? dialogTitle,
+  }) {
+    var attemptCount = 0;
+    return () async {
+      if (!mounted) {
+        return null;
+      }
+      if (attemptCount == 0) {
+        attemptCount++;
+        return '';
+      }
+      final password = await _promptPdfPassword(
+        path,
+        dialogTitle: dialogTitle,
+        wrongPassword: attemptCount > 1,
+      );
+      if (password != null) {
+        attemptCount++;
+      }
+      return password;
+    };
+  }
+
+  Future<String?> _promptPdfPassword(
+    String path, {
+    String? dialogTitle,
+    bool wrongPassword = false,
+  }) async {
+    final passwordController = TextEditingController();
+    final fileName = p.basename(path);
+    final password = await showDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        final l10n = context.l10n;
+        return AlertDialog(
+          title: Text(dialogTitle ?? l10n.passwordProtectedPdf),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.passwordRequiredForPdf(fileName)),
+              if (wrongPassword) ...[
+                const SizedBox(height: 8),
+                Text(
+                  l10n.wrongPdfPassword,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: passwordController,
+                autofocus: true,
+                obscureText: true,
+                onSubmitted: (value) =>
+                    Navigator.of(context).pop(value.trim().isEmpty ? null : value),
+                decoration: InputDecoration(
+                  labelText: l10n.pdfPassword,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () {
+                final value = passwordController.text.trim();
+                Navigator.of(context).pop(value.isEmpty ? null : value);
+              },
+              child: Text(l10n.open),
+            ),
+          ],
+        );
+      },
+    );
+    passwordController.dispose();
+    return password;
+  }
+
+  String _normalizeBatchFailure(Object error) {
+    if (error is PdfPasswordException) {
+      return context.l10n.batchPasswordSkipped;
+    }
+    return error.toString();
+  }
 
   Future<void> _openSettingsPage() async {
     await Navigator.of(context).push(

@@ -6,12 +6,15 @@ import 'package:window_manager/window_manager.dart';
 import 'src/app.dart';
 import 'src/state/theme_controller.dart';
 
+const Size _minimumWindowSize = Size(360, 560);
+
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   if (Platform.isWindows || Platform.isMacOS) {
     await windowManager.ensureInitialized();
     const windowOptions = WindowOptions(
       titleBarStyle: TitleBarStyle.hidden,
+      minimumSize: _minimumWindowSize,
     );
     windowManager.waitUntilReadyToShow(
       windowOptions,

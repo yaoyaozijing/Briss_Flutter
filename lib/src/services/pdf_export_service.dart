@@ -22,6 +22,7 @@ class PdfExportService {
     required Map<int, List<CropRect>> pageCropMap,
     String? destinationPath,
     String? destinationUri,
+    String? password,
     void Function(double progress, String message)? onProgress,
   }) async {
     final cleanupTemporaryOutput = destinationUri != null;
@@ -35,6 +36,7 @@ class PdfExportService {
       'sourcePath': project.filePath,
       'outputPath': outputPath,
       'pageCropMap': _serializePageCropMap(pageCropMap),
+      'password': password,
     };
 
     final completer = Completer<String>();
@@ -159,6 +161,7 @@ Future<void> _runExportInIsolate(Map<String, Object?> request) async {
   final sourcePath = request['sourcePath']! as String;
   final outputPath = request['outputPath']! as String;
   final rawEntries = request['pageCropMap']! as List<dynamic>;
+  final password = request['password'] as String?;
   final pageCropMap = <int, List<CropRect>>{};
 
   for (final entry in rawEntries) {
@@ -187,8 +190,10 @@ Future<void> _runExportInIsolate(Map<String, Object?> request) async {
 
   try {
     final sourceBytes = await File(sourcePath).readAsBytes();
-    sourceDocument = PdfDocument(inputBytes: sourceBytes);
+    sourceDocument = PdfDocument(inputBytes: sourceBytes, password: password);
     outputDocument = PdfDocument();
+    outputDocument.security.userPassword = '';
+    outputDocument.security.ownerPassword = '';
     outputDocument.pageSettings.margins.all = 0;
     final pageCount = sourceDocument.pages.count;
     for (var index = 0; index < pageCount; index++) {

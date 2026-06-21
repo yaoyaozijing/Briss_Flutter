@@ -156,6 +156,13 @@ class _SettingsPageState extends State<SettingsPage> {
                 description: Text(l10n.oledOnlyInDark),
                 onToggle: widget.themeController.updateOledOptimized,
               ),
+              SettingsTile.switchTile(
+                initialValue: widget.themeController.settings.eInkOptimized,
+                leading: const Icon(Icons.auto_awesome_mosaic_rounded),
+                title: Text(l10n.enableEInkOptimization),
+                description: Text(l10n.eInkOnlyInLight),
+                onToggle: widget.themeController.updateEInkOptimized,
+              ),
               if (isFlutterWindowingAvailable)
                 SettingsTile.switchTile(
                   initialValue: widget.themeController.settings.multiWindowMode,
@@ -187,9 +194,40 @@ class _SettingsPageState extends State<SettingsPage> {
                         value: level,
                         label: _smartGroupingLevelLabel(level),
                       ),
-                    )
+                )
                     .toList(),
                 onChanged: _updateDefaultGroupingLevel,
+              ),
+              SettingsTile.switchTile(
+                initialValue: _groupingSettings.defaultSeparateOddEven,
+                leading: const Icon(Icons.filter_2_outlined),
+                title: Text(l10n.defaultSeparateOddEvenForNewPdf),
+                description: Text(
+                  l10n.defaultSeparateOddEvenForNewPdfDescription,
+                ),
+                onToggle: _groupingSettingsLoaded
+                    ? _updateDefaultSeparateOddEven
+                    : null,
+              ),
+              SettingsTile.switchTile(
+                initialValue: _groupingSettings.batchCropRecursive,
+                leading: const Icon(Icons.account_tree_outlined),
+                title: Text(l10n.batchCropRecursive),
+                description: Text(l10n.batchCropRecursiveDescription),
+                onToggle: _groupingSettingsLoaded
+                    ? _updateBatchCropRecursive
+                    : null,
+              ),
+              SettingsTile.switchTile(
+                initialValue: _groupingSettings.useOriginalFileNameForExport,
+                leading: const Icon(Icons.drive_file_rename_outline_rounded),
+                title: Text(l10n.useOriginalFileNameForExport),
+                description: Text(
+                  l10n.useOriginalFileNameForExportDescription,
+                ),
+                onToggle: _groupingSettingsLoaded
+                    ? _updateUseOriginalFileNameForExport
+                    : null,
               ),
               SettingsTile.navigation(
                 leading: _clearingCache
@@ -266,6 +304,45 @@ class _SettingsPageState extends State<SettingsPage> {
     }
     final nextSettings = _groupingSettings.copyWith(
       defaultSmartGroupingLevel: level,
+    );
+    setState(() {
+      _groupingSettings = nextSettings;
+    });
+    await _appSettingsService.saveGroupingSettings(nextSettings);
+  }
+
+  Future<void> _updateDefaultSeparateOddEven(bool value) async {
+    if (_groupingSettings.defaultSeparateOddEven == value) {
+      return;
+    }
+    final nextSettings = _groupingSettings.copyWith(
+      defaultSeparateOddEven: value,
+    );
+    setState(() {
+      _groupingSettings = nextSettings;
+    });
+    await _appSettingsService.saveGroupingSettings(nextSettings);
+  }
+
+  Future<void> _updateBatchCropRecursive(bool value) async {
+    if (_groupingSettings.batchCropRecursive == value) {
+      return;
+    }
+    final nextSettings = _groupingSettings.copyWith(
+      batchCropRecursive: value,
+    );
+    setState(() {
+      _groupingSettings = nextSettings;
+    });
+    await _appSettingsService.saveGroupingSettings(nextSettings);
+  }
+
+  Future<void> _updateUseOriginalFileNameForExport(bool value) async {
+    if (_groupingSettings.useOriginalFileNameForExport == value) {
+      return;
+    }
+    final nextSettings = _groupingSettings.copyWith(
+      useOriginalFileNameForExport: value,
     );
     setState(() {
       _groupingSettings = nextSettings;

@@ -4,12 +4,16 @@ import 'dart:ui';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:path/path.dart' as p;
+import 'package:pdfrx/pdfrx.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'l10n/app_localizations.dart';
+import 'models/app_grouping_settings.dart';
 import 'models/cluster_settings.dart';
 import 'models/crop_aspect_ratio_lock.dart';
 import 'models/page_cluster.dart';
+import 'pdf_crop_preview_page.dart';
+import 'services/app_settings_service.dart';
 import 'state/pdf_editor_controller.dart';
 import 'services/windowing_service.dart';
 import 'widgets/crop_editor.dart';
@@ -35,12 +39,14 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
   final FocusNode _locatePageFocusNode = FocusNode();
   final GlobalKey _shareButtonKey = GlobalKey();
   final GlobalKey _toolMenuButtonKey = GlobalKey();
+  final AppSettingsService _appSettingsService = AppSettingsService();
   static const double _clusterPanelWidth = 350;
   static const double _toolPanelWidth = 188;
   String? _statusMessage;
   bool _showClusterPanel = true;
   bool _showToolPanel = true;
   bool _showLocatePageField = false;
+  AppGroupingSettings _groupingSettings = const AppGroupingSettings();
 
   PdfEditorController get _controller => widget.controller;
 
@@ -48,6 +54,7 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
   void initState() {
     super.initState();
     _controller.addListener(_onControllerChanged);
+    _loadGroupingSettings();
   }
 
   @override
@@ -65,6 +72,17 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
     if (mounted) {
       setState(() {});
     }
+  }
+
+  Future<void> _loadGroupingSettings() async {
+    await _appSettingsService.init();
+    final settings = _appSettingsService.loadGroupingSettings();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _groupingSettings = settings;
+    });
   }
   @override
   Widget build(BuildContext context) {
@@ -250,6 +268,11 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
       icon: const Icon(Icons.info),
       onSelected: _handleCompactToolbarAction,
       itemBuilder: (context) => [
+        PopupMenuItem(
+          value: _CompactToolbarAction.cropPreview,
+          child: Text(l10n.cropPreview),
+        ),
+        const PopupMenuDivider(),
         PopupMenuItem(
           value: _CompactToolbarAction.openPdf,
           child: Text(l10n.openPdf),
@@ -482,7 +505,6 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
 
   Widget _buildToolbarPanel() {
     final l10n = context.l10n;
-    final theme = Theme.of(context);
     return _buildFloatingPanel(
       child: Padding(
         padding: const EdgeInsets.all(12),
@@ -490,12 +512,12 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                l10n.toolSection,
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w700,
-                ),
+              _buildToolbarButton(
+                onPressed: _showCropPreviewPage,
+                icon: Icons.preview_outlined,
+                label: l10n.cropPreview,
               ),
+              Divider(color: Theme.of(context).colorScheme.outlineVariant),
               const SizedBox(height: 12),
               _buildToolbarButton(
                 onPressed: _viewportController.zoomOut,
@@ -630,6 +652,8 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
 
   void _handleCompactToolbarAction(_CompactToolbarAction action) {
     switch (action) {
+      case _CompactToolbarAction.cropPreview:
+        _showCropPreviewPage();
       case _CompactToolbarAction.openPdf:
         _pickPdf();
       case _CompactToolbarAction.sharePdf:
@@ -806,12 +830,14 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
                       icon: const Icon(Icons.file_open_rounded),
                       label: Text(l10n.openPdf),
                     ),
-                    const SizedBox(width: 10),
-                    FilledButton.tonalIcon(
-                      onPressed: () => _openExportDirectory(_controller.lastExportPath!),
-                      icon: const Icon(Icons.folder_open_rounded),
-                      label: Text(l10n.openDirectory),
-                    ),
+                    if (!Platform.isAndroid && !Platform.isIOS) ...[
+                      const SizedBox(width: 10),
+                      FilledButton.tonalIcon(
+                        onPressed: () => _revealExportedFile(_controller.lastExportPath!),
+                        icon: const Icon(Icons.folder_open_rounded),
+                        label: Text(l10n.revealFile),
+                      ),
+                    ],
                   ],
                 ),
               ],
@@ -851,6 +877,7 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
           excludedPages: _controller.settings.excludedPages,
           edgeFilter: _controller.settings.edgeFilter,
         ),
+        passwordProvider: _buildPasswordProvider(path),
       );
     } catch (error) {
       if (!mounted) {
@@ -1612,34 +1639,76 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
 
   String _suggestedOutputFileName() {
     final fileName = _controller.project?.fileName ?? 'output.pdf';
+    if (_groupingSettings.useOriginalFileNameForExport) {
+      return fileName;
+    }
     if (fileName.toLowerCase().endsWith('.pdf')) {
       return AppLocalizations.current.croppedFileName(fileName);
     }
     return AppLocalizations.current.croppedFileNameFallback(fileName);
   }
 
-  Future<void> _openExportDirectory(String outputPath) async {
+  Future<void> _revealExportedFile(String outputPath) async {
     final directoryPath = p.dirname(outputPath);
     try {
       if (Platform.isWindows) {
-        await Process.run('explorer.exe', [directoryPath]);
+        final result = await Process.run('explorer.exe', ['/select,', outputPath]);
+        if (result.exitCode != 0) {
+          throw ProcessException(
+            'explorer.exe',
+            ['/select,', outputPath],
+            result.stderr.toString(),
+            result.exitCode,
+          );
+        }
         return;
       }
       if (Platform.isMacOS) {
-        await Process.run('open', [directoryPath]);
+        final result = await Process.run('open', ['-R', outputPath]);
+        if (result.exitCode != 0) {
+          throw ProcessException(
+            'open',
+            ['-R', outputPath],
+            result.stderr.toString(),
+            result.exitCode,
+          );
+        }
         return;
       }
       if (Platform.isLinux) {
-        await Process.run('xdg-open', [directoryPath]);
+        final dolphinCheck = await Process.run('which', ['dolphin']);
+        final result = dolphinCheck.exitCode == 0
+            ? await Process.run('dolphin', ['--select', outputPath])
+            : await Process.run('xdg-open', [directoryPath]);
+        if (result.exitCode != 0) {
+          throw ProcessException(
+            dolphinCheck.exitCode == 0 ? 'dolphin' : 'xdg-open',
+            dolphinCheck.exitCode == 0 ? ['--select', outputPath] : [directoryPath],
+            result.stderr.toString(),
+            result.exitCode,
+          );
+        }
         return;
       }
-      _showMessage(context.l10n.openDirectoryUnsupported);
+      return;
     } catch (error) {
-      if (!mounted) {
-        return;
-      }
-      _showMessage(context.l10n.openDirectoryFailed(error.toString()));
+      return;
     }
+  }
+
+  Future<void> _showCropPreviewPage() async {
+    final project = _controller.project;
+    if (project == null) {
+      return;
+    }
+    await Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => PdfCropPreviewPage(
+          project: project,
+          clusters: List<PageCluster>.of(_controller.clusters),
+        ),
+      ),
+    );
   }
 
   Future<void> _openExportedPdf(String outputPath) async {
@@ -1679,9 +1748,90 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
       _statusMessage = null;
     });
   }
+
+  PdfPasswordProvider _buildPasswordProvider(String path) {
+    var attemptCount = 0;
+    return () async {
+      if (!mounted) {
+        return null;
+      }
+      if (attemptCount == 0) {
+        attemptCount++;
+        return '';
+      }
+      final password = await _promptPdfPassword(
+        path,
+        wrongPassword: attemptCount > 1,
+      );
+      if (password != null) {
+        attemptCount++;
+      }
+      return password;
+    };
+  }
+
+  Future<String?> _promptPdfPassword(
+    String path, {
+    bool wrongPassword = false,
+  }) async {
+    final passwordController = TextEditingController();
+    final fileName = p.basename(path);
+    final password = await showDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) {
+        final l10n = context.l10n;
+        return AlertDialog(
+          title: Text(l10n.passwordProtectedPdf),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.passwordRequiredForPdf(fileName)),
+              if (wrongPassword) ...[
+                const SizedBox(height: 8),
+                Text(
+                  l10n.wrongPdfPassword,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: passwordController,
+                autofocus: true,
+                obscureText: true,
+                onSubmitted: (value) =>
+                    Navigator.of(context).pop(value.trim().isEmpty ? null : value),
+                decoration: InputDecoration(
+                  labelText: l10n.pdfPassword,
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(l10n.cancel),
+            ),
+            FilledButton(
+              onPressed: () {
+                final value = passwordController.text.trim();
+                Navigator.of(context).pop(value.isEmpty ? null : value);
+              },
+              child: Text(l10n.open),
+            ),
+          ],
+        );
+      },
+    );
+    passwordController.dispose();
+    return password;
+  }
 }
 
 enum _CompactToolbarAction {
+  cropPreview,
   openPdf,
   sharePdf,
   zoomOut,

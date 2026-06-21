@@ -77,6 +77,15 @@ class ThemeController extends ChangeNotifier {
     unawaited(_settingsService.saveThemeSettings(_settings));
   }
 
+  void updateEInkOptimized(bool value) {
+    if (_settings.eInkOptimized == value) {
+      return;
+    }
+    _settings = _settings.copyWith(eInkOptimized: value);
+    notifyListeners();
+    unawaited(_settingsService.saveThemeSettings(_settings));
+  }
+
   void updateMultiWindowMode(bool value) {
     if (_settings.multiWindowMode == value) {
       return;
@@ -91,6 +100,7 @@ class ThemeController extends ChangeNotifier {
     required AppLanguageMode languageMode,
     required AppAccentMode accentMode,
     required bool oledOptimized,
+    required bool eInkOptimized,
     required bool multiWindowMode,
   }) {
     final next = _settings.copyWith(
@@ -98,12 +108,14 @@ class ThemeController extends ChangeNotifier {
       languageMode: languageMode,
       accentMode: accentMode,
       oledOptimized: oledOptimized,
+      eInkOptimized: eInkOptimized,
       multiWindowMode: multiWindowMode,
     );
     if (next.themeMode == _settings.themeMode &&
         next.languageMode == _settings.languageMode &&
         next.accentMode == _settings.accentMode &&
         next.oledOptimized == _settings.oledOptimized &&
+        next.eInkOptimized == _settings.eInkOptimized &&
         next.multiWindowMode == _settings.multiWindowMode) {
       return;
     }

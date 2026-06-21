@@ -12,6 +12,7 @@ class PdfProject {
     required this.clusters,
     required this.pageCount,
     required this.settings,
+    this.password,
   });
 
   final String filePath;
@@ -20,6 +21,7 @@ class PdfProject {
   final List<PageCluster> clusters;
   final int pageCount;
   final ClusterSettings settings;
+  final String? password;
 
   Future<void> dispose() async {
     await document.dispose();

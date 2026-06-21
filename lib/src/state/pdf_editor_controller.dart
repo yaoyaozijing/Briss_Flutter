@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:pdfrx/pdfrx.dart';
 
 import '../l10n/app_localizations.dart';
 import '../models/cluster_settings.dart';
@@ -62,6 +63,7 @@ class PdfEditorController extends ChangeNotifier {
   Future<void> openFile(
     String filePath, {
     ClusterSettings initialSettings = const ClusterSettings(),
+    PdfPasswordProvider? passwordProvider,
   }) async {
     await _runBusy(_l10n.loadingPdf, () async {
       final previousProject = _project;
@@ -72,6 +74,7 @@ class PdfEditorController extends ChangeNotifier {
       _project = await _projectService.open(
         filePath,
         settings: initialSettings,
+        passwordProvider: passwordProvider,
       );
       _selectedClusterIndex = 0;
       _selectedRectIndex = 0;
@@ -254,6 +257,7 @@ class PdfEditorController extends ChangeNotifier {
         clusters: rebuiltClusters,
         pageCount: _project!.pageCount,
         settings: _project!.settings,
+        password: _project!.password,
       );
       _selectedRectIndex = 0;
     });
@@ -285,14 +289,15 @@ class PdfEditorController extends ChangeNotifier {
       }
     }
 
-    _project = PdfProject(
-      filePath: _project!.filePath,
-      fileName: _project!.fileName,
-      document: _project!.document,
-      clusters: currentClusters,
-      pageCount: _project!.pageCount,
-      settings: _project!.settings,
-    );
+      _project = PdfProject(
+        filePath: _project!.filePath,
+        fileName: _project!.fileName,
+        document: _project!.document,
+        clusters: currentClusters,
+        pageCount: _project!.pageCount,
+        settings: _project!.settings,
+        password: _project!.password,
+      );
     notifyListeners();
   }
 
@@ -365,6 +370,7 @@ class PdfEditorController extends ChangeNotifier {
         clusters: updatedClusters,
         pageCount: _project!.pageCount,
         settings: _project!.settings,
+        password: _project!.password,
       );
       _selectedClusterIndex = updatedClusters.indexOf(newCluster);
       _selectedRectIndex = 0;
@@ -415,6 +421,7 @@ class PdfEditorController extends ChangeNotifier {
         clusters: updatedClusters,
         pageCount: _project!.pageCount,
         settings: _project!.settings,
+        password: _project!.password,
       );
       _selectedClusterIndex = updatedClusters.indexOf(newCluster);
       _selectedRectIndex = 0;
@@ -448,6 +455,7 @@ class PdfEditorController extends ChangeNotifier {
         pageCropMap: pageCropMap,
         destinationPath: destinationPath,
         destinationUri: destinationUri,
+        password: currentProject.password,
         onProgress: (progress, message) {
           _exportProgress = progress;
           _exportStatus = message;
@@ -510,6 +518,7 @@ class PdfEditorController extends ChangeNotifier {
       clusters: updatedClusters,
       pageCount: _project!.pageCount,
       settings: _project!.settings,
+      password: _project!.password,
     );
     notifyListeners();
   }

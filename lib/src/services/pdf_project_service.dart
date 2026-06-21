@@ -22,8 +22,18 @@ class PdfProjectService {
   Future<PdfProject> open(
     String filePath, {
     ClusterSettings settings = const ClusterSettings(),
+    PdfPasswordProvider? passwordProvider,
   }) async {
-    final document = await PdfDocument.openFile(filePath);
+    String? resolvedPassword;
+    final document = await PdfDocument.openFile(
+      filePath,
+      passwordProvider: passwordProvider == null
+          ? null
+          : () async {
+              resolvedPassword = await passwordProvider();
+              return resolvedPassword;
+            },
+    );
     final fileName = filePath.split(RegExp(r'[\\/]')).last;
     final clusters = await buildClusters(document, settings: settings);
     return PdfProject(
@@ -33,6 +43,7 @@ class PdfProjectService {
       clusters: clusters,
       pageCount: document.pages.length,
       settings: settings,
+      password: resolvedPassword,
     );
   }
 
@@ -150,6 +161,7 @@ class PdfProjectService {
       clusters: clusters,
       pageCount: project.pageCount,
       settings: settings,
+      password: project.password,
     );
   }
 
