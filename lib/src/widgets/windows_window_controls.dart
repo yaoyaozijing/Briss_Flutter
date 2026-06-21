@@ -138,7 +138,8 @@ class _WindowCaptionButton extends StatelessWidget {
         icon: Text(
           glyph,
           style: TextStyle(
-            fontFamily: 'Segoe MDL2 Assets',
+            fontFamily: 'Segoe Fluent Icons',
+            fontFamilyFallback: ['Segoe MDL2 Assets'],
             fontSize: 12,
             color: Theme.of(context).colorScheme.onSurface,
           ),

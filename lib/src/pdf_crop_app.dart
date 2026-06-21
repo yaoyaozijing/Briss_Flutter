@@ -1,5 +1,6 @@
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'l10n/app_localizations.dart';
@@ -9,6 +10,7 @@ import 'pdf_editor_page.dart';
 import 'services/android_incoming_pdf_service.dart';
 import 'services/app_settings_service.dart';
 import 'services/cache_service.dart';
+import 'services/windowing_service.dart';
 import 'settings_page.dart';
 import 'state/pdf_editor_controller.dart';
 import 'state/theme_controller.dart';
@@ -38,6 +40,10 @@ class _PdfCropAppState extends State<PdfCropApp> {
   bool _handledInitialPdf = false;
   String? _statusMessage;
   AppGroupingSettings _groupingSettings = const AppGroupingSettings();
+
+  bool get _supportsHomeDropTarget =>
+      defaultTargetPlatform != TargetPlatform.android &&
+      defaultTargetPlatform != TargetPlatform.iOS;
 
   @override
   void initState() {
@@ -145,92 +151,22 @@ class _PdfCropAppState extends State<PdfCropApp> {
                   ),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 960),
-                    child: DropTarget(
-                      onDragEntered: (_) {
-                        if (!_draggingPdf) {
-                          setState(() => _draggingPdf = true);
-                        }
-                      },
-                      onDragExited: (_) {
-                        if (_draggingPdf) {
-                          setState(() => _draggingPdf = false);
-                        }
-                      },
-                      onDragDone: (detail) => _handleDropFiles(detail.files),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        width: double.infinity,
-                        padding: const EdgeInsets.all(38),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(34),
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: [
-                              Color.alphaBlend(
-                                colorScheme.primary.withValues(alpha: _draggingPdf ? 0.24 : 0.16),
-                                colorScheme.surfaceContainerLow,
-                              ),
-                              colorScheme.surfaceContainerLowest,
-                            ],
-                          ),
-                          border: Border.all(
-                            color: _draggingPdf ? colorScheme.primary : colorScheme.outlineVariant,
-                            width: _draggingPdf ? 2.2 : 1,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: colorScheme.shadow.withValues(alpha: _draggingPdf ? 0.18 : 0.12),
-                              blurRadius: 36,
-                              offset: const Offset(0, 24),
-                            ),
-                          ],
-                        ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Container(
-                              width: 96,
-                              height: 96,
-                              decoration: BoxDecoration(
-                                color: colorScheme.primary,
-                                shape: BoxShape.circle,
-                              ),
-                              child: Icon(
-                                _draggingPdf ? Icons.file_download_done_rounded : Icons.picture_as_pdf_rounded,
-                                size: 54,
-                                color: Colors.white,
-                              ),
-                            ),
-                            const SizedBox(height: 24),
-                            Text(
-                              _draggingPdf ? l10n.releaseToImportPdf : l10n.appName,
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.headlineMedium?.copyWith(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              _draggingPdf
-                                  ? l10n.dropPdfToOpen
-                                  : l10n.pickOrDropPdf,
-                              textAlign: TextAlign.center,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                color: colorScheme.onSurfaceVariant,
-                                height: 1.5,
-                              ),
-                            ),
-                            const SizedBox(height: 28),
-                            FilledButton.icon(
-                              onPressed: _pickPdfAndOpenEditor,
-                              icon: const Icon(Icons.upload_file_rounded),
-                              label: Text(l10n.editPdf),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
+                    child: _supportsHomeDropTarget
+                        ? DropTarget(
+                            onDragEntered: (_) {
+                              if (!_draggingPdf) {
+                                setState(() => _draggingPdf = true);
+                              }
+                            },
+                            onDragExited: (_) {
+                              if (_draggingPdf) {
+                                setState(() => _draggingPdf = false);
+                              }
+                            },
+                            onDragDone: (detail) => _handleDropFiles(detail.files),
+                            child: _buildHomeCard(context),
+                          )
+                        : _buildHomeCard(context),
                   ),
                 ),
               );
@@ -258,6 +194,86 @@ class _PdfCropAppState extends State<PdfCropApp> {
     );
   }
 
+  Widget _buildHomeCard(BuildContext context) {
+    final l10n = context.l10n;
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      width: double.infinity,
+      padding: const EdgeInsets.all(38),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(34),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Color.alphaBlend(
+              colorScheme.primary.withValues(alpha: _draggingPdf ? 0.24 : 0.16),
+              colorScheme.surfaceContainerLow,
+            ),
+            colorScheme.surfaceContainerLowest,
+          ],
+        ),
+        border: Border.all(
+          color: _draggingPdf ? colorScheme.primary : colorScheme.outlineVariant,
+          width: _draggingPdf ? 2.2 : 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withValues(alpha: _draggingPdf ? 0.18 : 0.12),
+            blurRadius: 36,
+            offset: const Offset(0, 24),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 96,
+            height: 96,
+            decoration: BoxDecoration(
+              color: colorScheme.primary,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              _draggingPdf ? Icons.file_download_done_rounded : Icons.picture_as_pdf_rounded,
+              size: 54,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 24),
+          Text(
+            _draggingPdf ? l10n.releaseToImportPdf : l10n.appName,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            _draggingPdf
+                ? l10n.dropPdfToOpen
+                : (_supportsHomeDropTarget ? l10n.pickOrDropPdf : l10n.pickPdfOnly),
+            textAlign: TextAlign.center,
+            style: theme.textTheme.titleMedium?.copyWith(
+              color: colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
+          ),
+          const SizedBox(height: 28),
+          FilledButton.icon(
+            onPressed: _pickPdfAndOpenEditor,
+            icon: const Icon(Icons.upload_file_rounded),
+            label: Text(l10n.editPdf),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _pickPdfAndOpenEditor() async {
     try {
       final result = await FilePicker.pickFiles(
@@ -278,6 +294,9 @@ class _PdfCropAppState extends State<PdfCropApp> {
   }
 
   Future<void> _handleDropFiles(List<dynamic> files) async {
+    if (!_supportsHomeDropTarget) {
+      return;
+    }
     if (_draggingPdf && mounted) {
       setState(() => _draggingPdf = false);
     }
@@ -297,6 +316,43 @@ class _PdfCropAppState extends State<PdfCropApp> {
   }
 
   Future<void> _openPdfAndNavigate(String path) async {
+    if (widget.themeController.settings.multiWindowMode &&
+        isFlutterWindowingAvailable) {
+      final windowController = PdfEditorController();
+      try {
+        await windowController.openFile(
+          path,
+          initialSettings: ClusterSettings(
+            smartGroupingLevel: _groupingSettings.defaultSmartGroupingLevel,
+          ),
+        );
+        if (!mounted || windowController.project == null) {
+          windowController.dispose();
+          return;
+        }
+        final opened = openRegularEditorWindow(
+          context: context,
+          title: windowController.project!.fileName,
+          onClosed: () async {
+            await windowController.disposeProject();
+            windowController.dispose();
+            await _clearExportCacheSilently();
+          },
+          builder: (context) => PdfEditorPage(
+            controller: windowController,
+          ),
+        );
+        if (opened) {
+          return;
+        }
+        await windowController.disposeProject();
+        windowController.dispose();
+      } catch (_) {
+        windowController.dispose();
+        rethrow;
+      }
+    }
+
     await _controller.openFile(
       path,
       initialSettings: ClusterSettings(

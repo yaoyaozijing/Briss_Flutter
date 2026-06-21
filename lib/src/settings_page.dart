@@ -1,15 +1,15 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
+import 'package:settings_ui/settings_ui.dart';
 
 import 'l10n/app_localizations.dart';
 import 'models/app_grouping_settings.dart';
+import 'models/app_theme_settings.dart';
 import 'models/cluster_settings.dart';
 import 'services/app_settings_service.dart';
 import 'services/cache_service.dart';
+import 'services/windowing_service.dart';
 import 'state/theme_controller.dart';
-import 'theme_settings_page.dart';
 import 'widgets/windows_window_controls.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -44,6 +44,8 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         title: WindowsDragToMoveArea(
@@ -57,152 +59,174 @@ class _SettingsPageState extends State<SettingsPage> {
           SizedBox(width: 8),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(20),
-        children: [
-          _SettingsGroup(
-            title: l10n.appearance,
-            children: [
-              ListTile(
-                leading: const Icon(Icons.palette_outlined),
-                title: Text(l10n.themeSettings),
-                subtitle: Text(
-                  '${l10n.darkMode}/${l10n.lightMode}、${l10n.themeColors}、${l10n.oledOptimization}',
-                ),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute<void>(
-                      builder: (context) => ThemeSettingsPage(
-                        themeController: widget.themeController,
+      body: SettingsList(
+        platform: DevicePlatform.android,
+        lightTheme: SettingsThemeData(
+          settingsListBackground: Theme.of(context).scaffoldBackgroundColor,
+          settingsSectionBackground: Theme.of(context).cardColor,
+          dividerColor: colorScheme.outlineVariant,
+          tileDescriptionTextColor: colorScheme.onSurfaceVariant,
+          leadingIconsColor: colorScheme.primary,
+          settingsTileTextColor: colorScheme.onSurface,
+          inactiveTitleColor: colorScheme.onSurface.withValues(alpha: 0.38),
+        ),
+        darkTheme: SettingsThemeData(
+          settingsListBackground: Theme.of(context).scaffoldBackgroundColor,
+          settingsSectionBackground: Theme.of(context).cardColor,
+          dividerColor: colorScheme.outlineVariant,
+          tileDescriptionTextColor: colorScheme.onSurfaceVariant,
+          leadingIconsColor: colorScheme.primary,
+          settingsTileTextColor: colorScheme.onSurface,
+          inactiveTitleColor: colorScheme.onSurface.withValues(alpha: 0.38),
+        ),
+        sections: [
+          SettingsSection(
+            title: Text(l10n.language),
+            tiles: [
+              _SegmentedSettingsTile<AppLanguageMode>(
+                leading: const Icon(Icons.language_rounded),
+                title: Text(l10n.language),
+                selectedValue: widget.themeController.settings.languageMode,
+                options: AppLanguageMode.values
+                    .map(
+                      (mode) => _SegmentedOption(
+                        value: mode,
+                        label: _languageModeLabel(mode),
                       ),
-                    ),
-                  );
-                },
+                    )
+                    .toList(),
+                onChanged: widget.themeController.updateLanguageMode,
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          _SettingsGroup(
-            title: l10n.documents,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      l10n.defaultGroupingMode,
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      l10n.defaultGroupingModeDescription,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+          SettingsSection(
+            title: Text(l10n.appearance),
+            tiles: [
+              _SegmentedSettingsTile<AppThemeMode>(
+                leading:
+                    widget.themeController.settings.themeMode ==
+                        AppThemeMode.system
+                    ? const Icon(Icons.brightness_auto_rounded)
+                    : widget.themeController.settings.themeMode ==
+                          AppThemeMode.light
+                    ? const Icon(Icons.light_mode_rounded)
+                    : const Icon(Icons.dark_mode_rounded),
+                title: Text('${l10n.darkMode} / ${l10n.lightMode}'),
+                selectedValue: widget.themeController.settings.themeMode,
+                options: AppThemeMode.values
+                    .map(
+                      (mode) => _SegmentedOption(
+                        value: mode,
+                        label: _themeModeLabel(mode),
                       ),
-                    ),
-                    const SizedBox(height: 14),
-                    if (!_groupingSettingsLoaded)
-                      const LinearProgressIndicator(minHeight: 2)
-                    else
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: SmartGroupingLevel.values.map((level) {
-                          return ChoiceChip(
-                            label: Text(_smartGroupingLevelLabel(level)),
-                            selected:
-                                _groupingSettings.defaultSmartGroupingLevel == level,
-                            onSelected: (_) => _updateDefaultGroupingLevel(level),
-                          );
-                        }).toList(),
-                      ),
-                    const SizedBox(height: 10),
-                    Text(
-                      _smartGroupingLevelDescription(
-                        _groupingSettings.defaultSmartGroupingLevel,
-                      ),
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    if (Platform.isAndroid) ...[
-                      const SizedBox(height: 22),
-                      Text(
-                        l10n.defaultExportMode,
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        l10n.defaultExportModeDescription,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Wrap(
-                        spacing: 10,
-                        runSpacing: 10,
-                        children: AndroidExportMode.values.map((mode) {
-                          return ChoiceChip(
-                            label: Text(_androidExportModeLabel(mode)),
-                            selected: _groupingSettings.androidExportMode == mode,
-                            onSelected: (_) => _updateAndroidExportMode(mode),
-                          );
-                        }).toList(),
-                      ),
-                      const SizedBox(height: 10),
-                    Text(
-                      _androidExportModeDescription(
-                        _groupingSettings.androidExportMode,
-                        ),
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 22),
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: _clearingCache
-                          ? const SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(strokeWidth: 2.2),
-                            )
-                          : const Icon(Icons.cleaning_services_outlined),
-                      title: Text(l10n.clearCache),
-                      subtitle: Text(l10n.clearCacheDescription),
-                      trailing: const Icon(Icons.chevron_right_rounded),
-                      enabled: !_clearingCache,
-                      onTap: _clearingCache ? null : _clearCache,
-                    ),
-                  ],
+                    )
+                    .toList(),
+                onChanged: widget.themeController.updateThemeMode,
+              ),
+              SettingsTile(
+                leading: CircleAvatar(
+                  radius: 12,
+                  backgroundColor: Theme.of(context).colorScheme.primary,
                 ),
+                title: Text(l10n.themeColors),
+                trailing: DropdownButtonHideUnderline(
+                  child: DropdownButton<AppAccentMode>(
+                    value: widget.themeController.settings.accentMode,
+                    borderRadius: BorderRadius.circular(12),
+                    onChanged: (value) {
+                      if (value != null) {
+                        widget.themeController.updateAccentMode(value);
+                      }
+                    },
+                    items: AppAccentMode.values
+                        .map(
+                          (mode) => DropdownMenuItem<AppAccentMode>(
+                            value: mode,
+                            child: Text(_accentModeLabel(mode)),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ),
+              SettingsTile.switchTile(
+                initialValue: widget.themeController.settings.oledOptimized,
+                leading: const Icon(Icons.contrast_rounded),
+                title: Text(l10n.enableOledOptimization),
+                description: Text(l10n.oledOnlyInDark),
+                onToggle: widget.themeController.updateOledOptimized,
+              ),
+              if (isFlutterWindowingAvailable)
+                SettingsTile.switchTile(
+                  initialValue: widget.themeController.settings.multiWindowMode,
+                  leading: const Icon(Icons.open_in_new_rounded),
+                  title: Text(l10n.enableMultiWindowMode),
+                  description: Text(l10n.multiWindowModeDescription),
+                  onToggle: widget.themeController.updateMultiWindowMode,
+                ),
+            ],
+          ),
+          SettingsSection(
+            title: Text(l10n.documents),
+            tiles: [
+              _SegmentedSettingsTile<SmartGroupingLevel>(
+                leading: const Icon(Icons.layers_outlined),
+                title: Text(l10n.defaultGroupingMode),
+                description: Text(
+                  _groupingSettingsLoaded
+                      ? _smartGroupingLevelDescription(
+                          _groupingSettings.defaultSmartGroupingLevel,
+                        )
+                      : l10n.loading,
+                ),
+                enabled: _groupingSettingsLoaded,
+                selectedValue: _groupingSettings.defaultSmartGroupingLevel,
+                options: SmartGroupingLevel.values
+                    .map(
+                      (level) => _SegmentedOption(
+                        value: level,
+                        label: _smartGroupingLevelLabel(level),
+                      ),
+                    )
+                    .toList(),
+                onChanged: _updateDefaultGroupingLevel,
+              ),
+              SettingsTile.navigation(
+                leading: _clearingCache
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2.2),
+                      )
+                    : const Icon(Icons.cleaning_services_outlined),
+                title: Text(l10n.clearCache),
+                description: Text(l10n.clearCacheDescription),
+                enabled: !_clearingCache,
+                onPressed: _clearingCache ? null : (_) => _clearCache(),
               ),
             ],
           ),
-          const SizedBox(height: 18),
-          _SettingsGroup(
-            title: l10n.about,
-            children: [
-              ListTile(
+          SettingsSection(
+            title: Text(l10n.about),
+            tiles: [
+              SettingsTile(
                 leading: const Icon(Icons.info_outline_rounded),
                 title: Text(l10n.versionLabel),
-                subtitle: Text(_packageInfo == null ? l10n.loading : _packageInfo!.version),
+                value: Text(
+                  _packageInfo == null ? l10n.loading : _packageInfo!.version,
+                ),
               ),
-              ListTile(
+              SettingsTile.navigation(
                 leading: const Icon(Icons.description_outlined),
                 title: Text(l10n.thirdPartyLicenses),
-                subtitle: Text(l10n.thirdPartyLicensesDescription),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () {
+                description: Text(l10n.thirdPartyLicensesDescription),
+                onPressed: (context) {
                   Navigator.of(context).push(
                     MaterialPageRoute<void>(
                       builder: (context) => LicensePage(
                         applicationName: 'ProCropper PDF',
-                        applicationVersion: _packageInfo == null ? '0.1.0' : _packageInfo!.version,
+                        applicationVersion:
+                            _packageInfo == null ? '0.2.0' : _packageInfo!.version,
                       ),
                     ),
                   );
@@ -242,19 +266,6 @@ class _SettingsPageState extends State<SettingsPage> {
     }
     final nextSettings = _groupingSettings.copyWith(
       defaultSmartGroupingLevel: level,
-    );
-    setState(() {
-      _groupingSettings = nextSettings;
-    });
-    await _appSettingsService.saveGroupingSettings(nextSettings);
-  }
-
-  Future<void> _updateAndroidExportMode(AndroidExportMode mode) async {
-    if (_groupingSettings.androidExportMode == mode) {
-      return;
-    }
-    final nextSettings = _groupingSettings.copyWith(
-      androidExportMode: mode,
     );
     setState(() {
       _groupingSettings = nextSettings;
@@ -320,64 +331,112 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
-  String _androidExportModeLabel(AndroidExportMode mode) {
+  String _languageModeLabel(AppLanguageMode mode) {
     final l10n = AppLocalizations.current;
     switch (mode) {
-      case AndroidExportMode.askEveryTime:
-        return l10n.askEveryTime;
-      case AndroidExportMode.save:
-        return l10n.saveDirectly;
-      case AndroidExportMode.share:
-        return l10n.shareDirectly;
+      case AppLanguageMode.system:
+        return l10n.systemMode;
+      case AppLanguageMode.zhCn:
+        return l10n.simplifiedChinese;
+      case AppLanguageMode.en:
+        return l10n.english;
     }
   }
 
-  String _androidExportModeDescription(AndroidExportMode mode) {
+  String _themeModeLabel(AppThemeMode mode) {
     final l10n = AppLocalizations.current;
     switch (mode) {
-      case AndroidExportMode.askEveryTime:
-        return l10n.askEveryTimeDescription;
-      case AndroidExportMode.save:
-        return l10n.saveDirectlyDescription;
-      case AndroidExportMode.share:
-        return l10n.shareDirectlyDescription;
+      case AppThemeMode.system:
+        return l10n.systemMode;
+      case AppThemeMode.light:
+        return l10n.lightMode;
+      case AppThemeMode.dark:
+        return l10n.darkMode;
+    }
+  }
+
+  String _accentModeLabel(AppAccentMode mode) {
+    final l10n = AppLocalizations.current;
+    switch (mode) {
+      case AppAccentMode.system:
+        return l10n.systemMode;
+      case AppAccentMode.jade:
+        return l10n.jade;
+      case AppAccentMode.amber:
+        return l10n.amber;
+      case AppAccentMode.ocean:
+        return l10n.ocean;
+      case AppAccentMode.coral:
+        return l10n.coral;
+      case AppAccentMode.ruby:
+        return l10n.ruby;
+      case AppAccentMode.graphite:
+        return l10n.graphite;
     }
   }
 }
 
-class _SettingsGroup extends StatelessWidget {
-  const _SettingsGroup({
+class _SegmentedSettingsTile<T> extends AbstractSettingsTile {
+  const _SegmentedSettingsTile({
+    required this.leading,
     required this.title,
-    required this.children,
+    required this.selectedValue,
+    required this.options,
+    required this.onChanged,
+    this.description,
+    this.enabled = true,
   });
 
-  final String title;
-  final List<Widget> children;
+  final Widget leading;
+  final Widget title;
+  final Widget? description;
+  final T selectedValue;
+  final List<_SegmentedOption<T>> options;
+  final ValueChanged<T> onChanged;
+  final bool enabled;
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardColor,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
-            child: Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
+    return SettingsTile(
+      leading: leading,
+      title: title,
+      description: description,
+      enabled: enabled,
+      trailing: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SegmentedButton<T>(
+            showSelectedIcon: false,
+            segments: options
+                .map(
+                  (option) => ButtonSegment<T>(
+                    value: option.value,
+                    label: Text(option.label),
+                  ),
+                )
+                .toList(),
+            selected: <T>{selectedValue},
+            onSelectionChanged: enabled
+                ? (selection) {
+                    if (selection.isNotEmpty) {
+                      onChanged(selection.first);
+                    }
+                  }
+                : null,
           ),
-          ...children,
-        ],
+        ),
       ),
     );
   }
+}
+
+class _SegmentedOption<T> {
+  const _SegmentedOption({
+    required this.value,
+    required this.label,
+  });
+
+  final T value;
+  final String label;
 }

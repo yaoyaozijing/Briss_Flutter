@@ -19,6 +19,7 @@ dependencies:
   path: ^1.9.1
   path_provider: ^2.1.6
   pdfrx: ^2.4.4
+  settings_ui: ^2.0.2
   share_plus: ^12.0.2
   syncfusion_flutter_pdf: ^33.2.13+1
   window_manager: ^0.5.1

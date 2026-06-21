@@ -1,9 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'l10n/app_localizations.dart';
 import 'models/app_theme_settings.dart';
 import 'pdf_crop_app.dart';
+import 'services/windowing_service.dart';
 import 'state/theme_controller.dart';
 
 class ProCropperPdfApp extends StatelessWidget {
@@ -21,39 +24,54 @@ class ProCropperPdfApp extends StatelessWidget {
     return AnimatedBuilder(
       animation: themeController,
       builder: (context, child) {
-        return MaterialApp(
-          title: 'ProCropper PDF',
-          locale: themeController.appLocale,
-          supportedLocales: const [
-            Locale('zh', 'CN'),
-            Locale('en'),
-          ],
-          localeResolutionCallback: (locale, supportedLocales) {
-            if (locale == null) {
+        return wrapWithWindowManager(
+          MaterialApp(
+            title: 'ProCropper PDF',
+            locale: themeController.appLocale,
+            supportedLocales: const [
+              Locale('zh', 'CN'),
+              Locale('en'),
+            ],
+            localeResolutionCallback: (locale, supportedLocales) {
+              if (locale == null) {
+                return const Locale('en');
+              }
+              if (locale.languageCode.toLowerCase().startsWith('zh')) {
+                return const Locale('zh', 'CN');
+              }
               return const Locale('en');
-            }
-            if (locale.languageCode.toLowerCase().startsWith('zh')) {
-              return const Locale('zh', 'CN');
-            }
-            return const Locale('en');
-          },
-          localizationsDelegates: const [
-            AppLocalizations.delegate,
-            GlobalMaterialLocalizations.delegate,
-            GlobalWidgetsLocalizations.delegate,
-          ],
-          themeMode: themeController.materialThemeMode,
-          theme: _buildTheme(
-            brightness: Brightness.light,
-            settings: themeController.settings,
-          ),
-          darkTheme: _buildTheme(
-            brightness: Brightness.dark,
-            settings: themeController.settings,
-          ),
-          home: PdfCropApp(
-            themeController: themeController,
-            initialPdfPath: initialPdfPath,
+            },
+            localizationsDelegates: const [
+              AppLocalizations.delegate,
+              GlobalMaterialLocalizations.delegate,
+              GlobalWidgetsLocalizations.delegate,
+            ],
+            themeMode: themeController.materialThemeMode,
+            theme: _buildTheme(
+              brightness: Brightness.light,
+              settings: themeController.settings,
+            ),
+            darkTheme: _buildTheme(
+              brightness: Brightness.dark,
+              settings: themeController.settings,
+            ),
+            builder: (context, child) {
+              final content = child ?? const SizedBox.shrink();
+              if (!Platform.isMacOS) {
+                return content;
+              }
+              return SafeArea(
+                top: true,
+                left: false,
+                right: false,
+                bottom: false,
+                child: content,
+              );
+            },
+            home: PdfCropApp(
+              themeController: themeController,
+              initialPdfPath: initialPdfPath,
+            ),
           ),
         );
       },
@@ -65,14 +83,52 @@ class ProCropperPdfApp extends StatelessWidget {
     required AppThemeSettings settings,
   }) {
     final seedColor = _resolveSeedColor(settings.accentMode, brightness);
-    final colorScheme = ColorScheme.fromSeed(
+    final baseColorScheme = ColorScheme.fromSeed(
       seedColor: seedColor,
       brightness: brightness,
     );
+    final oledOptimized =
+        brightness == Brightness.dark && settings.oledOptimized;
+    final colorScheme = oledOptimized
+        ? baseColorScheme.copyWith(
+            surface: const Color(0xFF000000),
+            surfaceDim: const Color(0xFF000000),
+            surfaceBright: const Color(0xFF141414),
+            surfaceContainerLowest: const Color(0xFF000000),
+            surfaceContainerLow: const Color(0xFF050505),
+            surfaceContainer: const Color(0xFF090909),
+            surfaceContainerHigh: const Color(0xFF101010),
+            surfaceContainerHighest: const Color(0xFF181818),
+          )
+        : baseColorScheme;
     return ThemeData(
       colorScheme: colorScheme,
       useMaterial3: true,
-      fontFamilyFallback: const ['Microsoft YaHei', 'PingFang SC', 'Noto Sans CJK SC'],
+      scaffoldBackgroundColor: colorScheme.surface,
+      canvasColor: colorScheme.surface,
+      dialogTheme: DialogThemeData(
+        backgroundColor: colorScheme.surfaceContainerLow,
+        surfaceTintColor: Colors.transparent,
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: colorScheme.surface,
+        surfaceTintColor: Colors.transparent,
+      ),
+      menuTheme: MenuThemeData(
+        style: MenuStyle(
+          backgroundColor: WidgetStatePropertyAll<Color>(
+            colorScheme.surfaceContainerLow,
+          ),
+          surfaceTintColor: const WidgetStatePropertyAll<Color>(
+            Colors.transparent,
+          ),
+        ),
+      ),
+      fontFamilyFallback: const [
+        'Microsoft YaHei',
+        'PingFang SC',
+        'Noto Sans CJK SC',
+      ],
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,

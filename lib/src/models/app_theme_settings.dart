@@ -29,24 +29,28 @@ class AppThemeSettings {
     this.languageMode = AppLanguageMode.system,
     this.accentMode = AppAccentMode.system,
     this.oledOptimized = false,
+    this.multiWindowMode = false,
   });
 
   final AppThemeMode themeMode;
   final AppLanguageMode languageMode;
   final AppAccentMode accentMode;
   final bool oledOptimized;
+  final bool multiWindowMode;
 
   AppThemeSettings copyWith({
     AppThemeMode? themeMode,
     AppLanguageMode? languageMode,
     AppAccentMode? accentMode,
     bool? oledOptimized,
+    bool? multiWindowMode,
   }) {
     return AppThemeSettings(
       themeMode: themeMode ?? this.themeMode,
       languageMode: languageMode ?? this.languageMode,
       accentMode: accentMode ?? this.accentMode,
       oledOptimized: oledOptimized ?? this.oledOptimized,
+      multiWindowMode: multiWindowMode ?? this.multiWindowMode,
     );
   }
 }

@@ -7,12 +7,11 @@ import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 
 import 'l10n/app_localizations.dart';
-import 'models/app_grouping_settings.dart';
 import 'models/cluster_settings.dart';
 import 'models/crop_aspect_ratio_lock.dart';
 import 'models/page_cluster.dart';
-import 'services/app_settings_service.dart';
 import 'state/pdf_editor_controller.dart';
+import 'services/windowing_service.dart';
 import 'widgets/crop_editor.dart';
 import 'widgets/status_corner_card.dart';
 import 'widgets/windows_window_controls.dart';
@@ -34,7 +33,6 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
   final CropViewportController _viewportController = CropViewportController();
   final TextEditingController _locatePageController = TextEditingController();
   final FocusNode _locatePageFocusNode = FocusNode();
-  late final AppSettingsService _appSettingsService;
   static const double _clusterPanelWidth = 350;
   static const double _toolPanelWidth = 188;
   String? _statusMessage;
@@ -47,9 +45,7 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
   @override
   void initState() {
     super.initState();
-    _appSettingsService = AppSettingsService();
     _controller.addListener(_onControllerChanged);
-    _loadDocumentSettings();
   }
 
   @override
@@ -68,34 +64,29 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
       setState(() {});
     }
   }
-
-  Future<void> _loadDocumentSettings() async {
-    await _appSettingsService.init();
-    if (!mounted) {
-      return;
-    }
-    setState(() {});
-  }
-
   @override
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final project = _controller.project;
     final cluster = _controller.selectedCluster;
     final isCompact = MediaQuery.sizeOf(context).width < 700;
+    final isWindowedEditor = isWindowedEditorContext(context);
 
     return Scaffold(
       appBar: AppBar(
-        leadingWidth: 108,
+        automaticallyImplyLeading: false,
+        leadingWidth: isWindowedEditor ? 48 : 108,
         leading: Row(
           children: [
-            const BackButton(),
+            if (!isWindowedEditor) const BackButton(),
             IconButton(
               tooltip: isCompact
                   ? l10n.clusterPanelOpen
-                  : (_showClusterPanel ? l10n.collapseClusterPanel : l10n.expandClusterPanel),
+                  : (_showClusterPanel
+                        ? l10n.collapseClusterPanel
+                        : l10n.expandClusterPanel),
               onPressed: isCompact ? _showClusterBottomSheet : _toggleClusterPanel,
-              icon: Icon(Icons.menu),
+              icon: const Icon(Icons.menu),
             ),
           ],
         ),
@@ -112,27 +103,13 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
         actions: [
           _buildToolActionsButton(isCompact),
           if (!isCompact)
-            TextButton.icon(
+            OutlinedButton.icon(
               onPressed: _controller.isBusy ? null : _pickPdf,
               icon: const Icon(Icons.folder_open_rounded),
               label: Text(l10n.open),
             ),
-          const SizedBox(width: 8),
-          if (isCompact)
-            FilledButton(
-              onPressed: project == null || _controller.isBusy ? null : _exportPdf,
-              style: FilledButton.styleFrom(
-                minimumSize: const Size(40, 40),
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-              ),
-              child: const Icon(Icons.download_rounded),
-            )
-          else
-            FilledButton.icon(
-              onPressed: project == null || _controller.isBusy ? null : _exportPdf,
-              icon: const Icon(Icons.download_rounded),
-              label: Text(l10n.export),
-            ),
+          if (!isCompact) const SizedBox(width: 8),
+          _buildExportSplitButton(isCompact),
           const WindowsWindowControls(),
           const SizedBox(width: 8),
         ],
@@ -272,6 +249,10 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
         PopupMenuItem(
           value: _CompactToolbarAction.openPdf,
           child: Text(l10n.openPdf),
+        ),
+        PopupMenuItem(
+          value: _CompactToolbarAction.sharePdf,
+          child: Text(l10n.share),
         ),
         const PopupMenuDivider(),
         PopupMenuItem(
@@ -610,6 +591,7 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
       context: context,
       useSafeArea: true,
       isScrollControlled: true,
+      showDragHandle: true,
       backgroundColor: Colors.transparent,
       builder: (context) {
         return FractionallySizedBox(
@@ -646,6 +628,8 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
     switch (action) {
       case _CompactToolbarAction.openPdf:
         _pickPdf();
+      case _CompactToolbarAction.sharePdf:
+        _sharePdf();
       case _CompactToolbarAction.zoomOut:
         _viewportController.zoomOut();
       case _CompactToolbarAction.zoomIn:
@@ -855,7 +839,15 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
         return;
       }
       _selectedClusterIndices.clear();
-      await _controller.openFile(path);
+      await _controller.openFile(
+        path,
+        initialSettings: ClusterSettings(
+          smartGroupingLevel: _controller.settings.smartGroupingLevel,
+          separateOddEven: _controller.settings.separateOddEven,
+          excludedPages: _controller.settings.excludedPages,
+          edgeFilter: _controller.settings.edgeFilter,
+        ),
+      );
     } catch (error) {
       if (!mounted) {
         return;
@@ -864,57 +856,39 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
     }
   }
 
-  Future<void> _exportPdf() async {
+  Widget _buildExportSplitButton(bool isCompact) {
+    final l10n = context.l10n;
+    final enabled = _controller.project != null && !_controller.isBusy;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (!isCompact) ...[
+          OutlinedButton.icon(
+            onPressed: enabled ? _sharePdf : null,
+            icon: const Icon(Icons.share_outlined),
+            label: Text(l10n.share),
+          ),
+          const SizedBox(width: 8),
+        ],
+        FilledButton.icon(
+          onPressed: enabled ? _savePdf : null,
+          icon: const Icon(Icons.save_alt_rounded),
+          label: Text(l10n.save),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _savePdf() async {
     try {
+      final destination = await _resolveSaveDestination();
+      if (destination == null) {
+        return;
+      }
       if (Platform.isAndroid) {
-        await _appSettingsService.init();
-        final currentSettings = _appSettingsService.loadGroupingSettings();
-        final exportMode = currentSettings.androidExportMode;
-        if (exportMode == AndroidExportMode.askEveryTime) {
-          final exportDecision = await _showAndroidExportActionDialog();
-          if (exportDecision == null) {
-            return;
-          }
-          if (exportDecision.doNotAskAgain) {
-            final nextSettings = currentSettings.copyWith(
-              androidExportMode: switch (exportDecision.action) {
-                _AndroidExportAction.save => AndroidExportMode.save,
-                _AndroidExportAction.share => AndroidExportMode.share,
-              },
-            );
-            await _appSettingsService.saveGroupingSettings(nextSettings);
-          }
-          await _performAndroidExport(exportDecision.action);
-          return;
-        }
-        await _performAndroidExport(
-          exportMode == AndroidExportMode.save
-              ? _AndroidExportAction.save
-              : _AndroidExportAction.share,
-        );
-        } else if (Platform.isIOS) {
-            final tempPath = await _controller.createTemporaryExportPath();
-            if (tempPath == null) {
-              return;
-            }
-
-            try {
-              await _controller.export(destinationPath: tempPath);
-
-              await _performIOSExport(filePath: tempPath);
-
-              _controller.dismissExportFeedback();
-            } finally {
-              await _controller.deleteTemporaryExport(tempPath);
-            }
-
-            return;
-        } else {
-        final destinationPath = await _resolveExportDestinationPath();
-        if (destinationPath == null) {
-          return;
-        }
-        await _controller.export(destinationPath: destinationPath);
+        await _controller.export(destinationUri: destination);
+      } else {
+        await _controller.export(destinationPath: destination);
       }
     } catch (error) {
       if (!mounted) {
@@ -924,123 +898,44 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
     }
   }
 
-  Future<_AndroidExportDecision?> _showAndroidExportActionDialog() {
-    return showDialog<_AndroidExportDecision>(
-      context: context,
-      builder: (context) {
-        var doNotAskAgain = false;
-        return AlertDialog(
-          title: Text(context.l10n.chooseExportMethodTitle),
-          content: StatefulBuilder(
-            builder: (context, setState) {
-              final l10n = context.l10n;
-              return Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(l10n.chooseExportMethodDescription),
-                  const SizedBox(height: 14),
-                  CheckboxListTile(
-                    contentPadding: EdgeInsets.zero,
-                    value: doNotAskAgain,
-                    onChanged: (value) {
-                      setState(() {
-                        doNotAskAgain = value ?? false;
-                      });
-                    },
-                    title: Text(l10n.doNotAskAgain),
-                    subtitle: Text(l10n.rememberExportChoice),
-                    controlAffinity: ListTileControlAffinity.leading,
-                  ),
-                ],
-              );
-            },
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text(context.l10n.cancel),
-            ),
-            FilledButton.tonal(
-              onPressed: () {
-                Navigator.of(context).pop(
-                  _AndroidExportDecision(
-                    action: _AndroidExportAction.share,
-                    doNotAskAgain: doNotAskAgain,
-                  ),
-                );
-              },
-              child: Text(context.l10n.share),
-            ),
-            FilledButton(
-              onPressed: () {
-                Navigator.of(context).pop(
-                  _AndroidExportDecision(
-                    action: _AndroidExportAction.save,
-                    doNotAskAgain: doNotAskAgain,
-                  ),
-                );
-              },
-              child: Text(context.l10n.save),
-            ),
-          ],
-        );
-      },
-    );
-  }
-
-  Future<void> _performAndroidExport(_AndroidExportAction action) async {
-    if (action == _AndroidExportAction.save) {
-      final destinationUri = await _controller.createAndroidDocumentUri(
-        fileName: _suggestedOutputFileName(),
-      );
-      if (destinationUri == null) {
+  Future<void> _sharePdf() async {
+    try {
+      final tempPath = await _controller.createTemporaryExportPath();
+      if (tempPath == null) {
         return;
       }
-      await _controller.export(destinationUri: destinationUri);
-      return;
-    }
-
-    final outputPath = await _controller.createTemporaryExportPath();
-    if (outputPath == null) {
-      return;
-    }
-    try {
-      await _controller.export(destinationPath: outputPath);
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [XFile(outputPath, mimeType: 'application/pdf')],
-          text: _suggestedOutputFileName(),
-        ),
-      );
+      await _controller.export(destinationPath: tempPath);
+      await _shareExportedPdf(tempPath);
       _controller.dismissExportFeedback();
-    } finally {
-      await _controller.deleteTemporaryExport(outputPath);
+    } catch (error) {
+      if (!mounted) {
+          return;
+        }
+      _showMessage(context.l10n.exportFailedWithError(error.toString()));
     }
   }
 
-  Future<void> _performIOSExport({
-    required String filePath,
-  }) async {
+  Future<void> _shareExportedPdf(String filePath) async {
     final renderBox = context.findRenderObject() as RenderBox?;
-    final size = renderBox?.size ?? Size.zero;
-    final origin = Rect.fromLTWH(
-      size.width - 1,
-      0,
-      1,
-      1,
-    );
+    final origin = renderBox == null
+        ? null
+        : renderBox.localToGlobal(Offset.zero) & renderBox.size;
     await SharePlus.instance.share(
       ShareParams(
         files: [XFile(filePath, mimeType: 'application/pdf')],
         title: _suggestedOutputFileName(),
-        sharePositionOrigin: origin
+        text: _suggestedOutputFileName(),
+        sharePositionOrigin: origin,
       ),
     );
   }
 
-
-  Future<String?> _resolveExportDestinationPath() async {
+  Future<String?> _resolveSaveDestination() async {
+    if (Platform.isAndroid) {
+      return _controller.createAndroidDocumentUri(
+        fileName: _suggestedOutputFileName(),
+      );
+    }
     final result = await FilePicker.saveFile(
       dialogTitle: context.l10n.saveCroppedPdf,
       fileName: _suggestedOutputFileName(),
@@ -1742,23 +1637,9 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
   }
 }
 
-enum _AndroidExportAction {
-  save,
-  share,
-}
-
-class _AndroidExportDecision {
-  const _AndroidExportDecision({
-    required this.action,
-    required this.doNotAskAgain,
-  });
-
-  final _AndroidExportAction action;
-  final bool doNotAskAgain;
-}
-
 enum _CompactToolbarAction {
   openPdf,
+  sharePdf,
   zoomOut,
   zoomIn,
   recalculateCurrent,

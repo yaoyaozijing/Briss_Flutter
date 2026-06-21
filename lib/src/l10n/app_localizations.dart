@@ -38,6 +38,9 @@ class AppLocalizations {
   String get pickOrDropPdf => isZh
       ? '点击选择 PDF，或直接把 PDF 文件拖到这个区域开始编辑。'
       : 'Pick a PDF or drag one into this area to start editing.';
+  String get pickPdfOnly => isZh
+      ? '点击选择 PDF 开始编辑。'
+      : 'Pick a PDF to start editing.';
   String get openPdfFailedPrefix =>
       isZh ? '打开 PDF 失败：' : 'Failed to open PDF: ';
   String get pleaseDropPdf =>
@@ -249,7 +252,7 @@ class AppLocalizations {
   String get restore => isZh ? '还原' : 'Restore';
   String get darkMode => isZh ? '深色' : 'Dark';
   String get lightMode => isZh ? '浅色' : 'Light';
-  String get systemMode => isZh ? '跟随系统' : 'Follow System';
+  String get systemMode => isZh ? '自动' : 'Follow System';
   String get language => isZh ? '语言' : 'Language';
   String get simplifiedChinese => isZh ? '简体中文' : 'Simplified Chinese';
   String get english => isZh ? 'English' : 'English';
@@ -263,6 +266,12 @@ class AppLocalizations {
       isZh ? '启用 OLED 优化' : 'Enable OLED Optimization';
   String get oledOnlyInDark =>
       isZh ? '仅在深色主题下生效' : 'Only takes effect in dark mode';
+  String get multiWindowMode => isZh ? '多窗口模式' : 'Multi-Window Mode';
+  String get enableMultiWindowMode =>
+      isZh ? '启用多窗口模式' : 'Enable Multi-Window Mode';
+  String get multiWindowModeDescription => isZh
+      ? '开启后，打开 PDF 会始终在独立窗口中进行编辑，编辑窗口不显示左上角返回按钮。'
+      : 'When enabled, opening a PDF always uses a separate editor window, and that window hides the top-left back button.';
   String get jade => isZh ? '玉石绿' : 'Jade';
   String get amber => isZh ? '琥珀金' : 'Amber';
   String get ocean => isZh ? '海湾蓝' : 'Ocean';

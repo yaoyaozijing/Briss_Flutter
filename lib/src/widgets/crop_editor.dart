@@ -85,6 +85,15 @@ class _CropEditorState extends State<CropEditor> {
   static const double _minZoom = 0.35;
   static const double _maxZoom = 6;
   static const double _zoomStep = 1.15;
+  static const double _mouseHandleRadius = 16;
+  static const double _mouseEdgeDistance = 10;
+  static const double _mouseEdgeCornerInset = 10;
+  static const double _touchHandleRadius = 68;
+  static const double _touchEdgeDistance = 60;
+  static const double _touchEdgeCornerInset = 32;
+  static const double _stylusHandleRadius = 26;
+  static const double _stylusEdgeDistance = 22;
+  static const double _stylusEdgeCornerInset = 12;
 
   _InteractionMode _interactionMode = _InteractionMode.none;
   _DragHandle? _dragHandle;
@@ -97,6 +106,8 @@ class _CropEditorState extends State<CropEditor> {
   Offset _pan = Offset.zero;
   double _gestureStartZoom = 1;
   Offset _gestureAnchor = const Offset(0.5, 0.5);
+  PointerDeviceKind _lastPointerKind = PointerDeviceKind.mouse;
+  MouseCursor _mouseCursor = SystemMouseCursors.basic;
 
   @override
   void initState() {
@@ -145,52 +156,66 @@ class _CropEditorState extends State<CropEditor> {
         _baseFittedSize ??= _fitSize(_contentRectFor(_viewportSize).size, widget.previewSize);
         final imageRect = _imageRectFor(_viewportSize);
         return Listener(
+          onPointerDown: (event) {
+            _lastPointerKind = event.kind;
+          },
           onPointerSignal: _onPointerSignal,
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onScaleStart: _onScaleStart,
-            onScaleUpdate: _onScaleUpdate,
-            onScaleEnd: _onScaleEnd,
-            onTapUp: _onTapUp,
-            onDoubleTapDown: _onDoubleTapDown,
-            onSecondaryTapUp: _onSecondaryTapUp,
-            child: ClipRect(
-              child: Stack(
-                children: [
-                  Positioned.fromRect(
-                    rect: imageRect,
-                    child: Image.memory(
-                      widget.previewBytes,
-                      fit: BoxFit.fill,
-                    ),
-                  ),
-                  Positioned.fill(
-                    child: CustomPaint(
-                      painter: _CropPainter(
-                        imageRect: imageRect,
-                        cropRects: widget.cropRects,
-                        selectedRectIndex: widget.selectedRectIndex,
-                        colorScheme: widget.colorScheme,
+          child: MouseRegion(
+            cursor: _mouseCursor,
+            onHover: _onMouseHover,
+            onExit: (_) {
+              if (_mouseCursor != SystemMouseCursors.basic) {
+                setState(() {
+                  _mouseCursor = SystemMouseCursors.basic;
+                });
+              }
+            },
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onScaleStart: _onScaleStart,
+              onScaleUpdate: _onScaleUpdate,
+              onScaleEnd: _onScaleEnd,
+              onTapUp: _onTapUp,
+              onDoubleTapDown: _onDoubleTapDown,
+              onSecondaryTapUp: _onSecondaryTapUp,
+              child: ClipRect(
+                child: Stack(
+                  children: [
+                    Positioned.fromRect(
+                      rect: imageRect,
+                      child: Image.memory(
+                        widget.previewBytes,
+                        fit: BoxFit.fill,
                       ),
                     ),
-                  ),
-                  ...List<Widget>.generate(widget.cropRects.length, (index) {
-                    final rect = _rectOnViewport(widget.cropRects[index], imageRect);
-                    final selected = index == widget.selectedRectIndex;
-                    return Positioned.fromRect(
-                      rect: _labelRect(rect, index),
-                      child: _RectInfoChip(
-                        index: index,
-                        selected: selected,
-                        colorScheme: widget.colorScheme,
-                        onTap: () {
-                          widget.onRectSelected(index);
-                          widget.onRectInfoRequested(index);
-                        },
+                    Positioned.fill(
+                      child: CustomPaint(
+                        painter: _CropPainter(
+                          imageRect: imageRect,
+                          cropRects: widget.cropRects,
+                          selectedRectIndex: widget.selectedRectIndex,
+                          colorScheme: widget.colorScheme,
+                        ),
                       ),
-                    );
-                  }),
-                ],
+                    ),
+                    ...List<Widget>.generate(widget.cropRects.length, (index) {
+                      final rect = _rectOnViewport(widget.cropRects[index], imageRect);
+                      final selected = index == widget.selectedRectIndex;
+                      return Positioned.fromRect(
+                        rect: _labelRect(rect, index),
+                        child: _RectInfoChip(
+                          index: index,
+                          selected: selected,
+                          colorScheme: widget.colorScheme,
+                          onTap: () {
+                            widget.onRectSelected(index);
+                            widget.onRectInfoRequested(index);
+                          },
+                        ),
+                      );
+                    }),
+                  ],
+                ),
               ),
             ),
           ),
@@ -269,7 +294,7 @@ class _CropEditorState extends State<CropEditor> {
         widget.cropRects[widget.selectedRectIndex],
         imageRect,
       );
-      final handle = _resolveHandle(local, selectedRect);
+      final handle = _resolveHandle(local, selectedRect, _lastPointerKind);
       if (handle != null) {
         _interactionMode = _InteractionMode.editCrop;
         _dragHandle = handle;
@@ -364,6 +389,18 @@ class _CropEditorState extends State<CropEditor> {
 
     final factor = event.scrollDelta.dy < 0 ? _zoomStep : 1 / _zoomStep;
     _zoomAround(event.localPosition, factor);
+  }
+
+  void _onMouseHover(PointerHoverEvent event) {
+    if (_viewportSize.isEmpty) {
+      return;
+    }
+    final nextCursor = _cursorForPosition(event.localPosition);
+    if (nextCursor != _mouseCursor) {
+      setState(() {
+        _mouseCursor = nextCursor;
+      });
+    }
   }
 
   void _updateCropRect(Offset localPosition) {
@@ -573,13 +610,19 @@ class _CropEditorState extends State<CropEditor> {
     );
   }
 
-  _DragHandle? _resolveHandle(Offset point, Rect rect) {
-    const handleRadius = 16.0;
-    const edgeDistance = 10.0;
+  _DragHandle? _resolveHandle(
+    Offset point,
+    Rect rect,
+    PointerDeviceKind pointerKind,
+  ) {
+    final (handleRadius, edgeDistance, edgeCornerInset) =
+        _hitTargetFor(pointerKind);
     final insideHorizontal =
-        point.dx >= rect.left + handleRadius && point.dx <= rect.right - handleRadius;
+        point.dx >= rect.left + edgeCornerInset &&
+        point.dx <= rect.right - edgeCornerInset;
     final insideVertical =
-        point.dy >= rect.top + handleRadius && point.dy <= rect.bottom - handleRadius;
+        point.dy >= rect.top + edgeCornerInset &&
+        point.dy <= rect.bottom - edgeCornerInset;
 
     if ((point - rect.topLeft).distance <= handleRadius) {
       return _DragHandle.topLeft;
@@ -609,6 +652,64 @@ class _CropEditorState extends State<CropEditor> {
       return _DragHandle.move;
     }
     return null;
+  }
+
+  (double, double, double) _hitTargetFor(PointerDeviceKind pointerKind) {
+    return switch (pointerKind) {
+      PointerDeviceKind.touch => (
+        _touchHandleRadius,
+        _touchEdgeDistance,
+        _touchEdgeCornerInset,
+      ),
+      PointerDeviceKind.stylus || PointerDeviceKind.invertedStylus => (
+        _stylusHandleRadius,
+        _stylusEdgeDistance,
+        _stylusEdgeCornerInset,
+      ),
+      _ => (
+        _mouseHandleRadius,
+        _mouseEdgeDistance,
+        _mouseEdgeCornerInset,
+      ),
+    };
+  }
+
+  MouseCursor _cursorForPosition(Offset position) {
+    final imageRect = _imageRectFor(_viewportSize);
+    if (widget.cropRects.isNotEmpty) {
+      final selectedRect = _rectOnViewport(
+        widget.cropRects[widget.selectedRectIndex],
+        imageRect,
+      );
+      final selectedHandle = _resolveHandle(
+        position,
+        selectedRect,
+        PointerDeviceKind.mouse,
+      );
+      if (selectedHandle != null) {
+        return _cursorForHandle(selectedHandle);
+      }
+
+      for (var i = widget.cropRects.length - 1; i >= 0; i--) {
+        final rect = _rectOnViewport(widget.cropRects[i], imageRect);
+        if (rect.contains(position)) {
+          return SystemMouseCursors.move;
+        }
+      }
+    }
+    return SystemMouseCursors.basic;
+  }
+
+  MouseCursor _cursorForHandle(_DragHandle handle) {
+    return switch (handle) {
+      _DragHandle.move => SystemMouseCursors.move,
+      _DragHandle.top || _DragHandle.bottom => SystemMouseCursors.resizeUpDown,
+      _DragHandle.left || _DragHandle.right => SystemMouseCursors.resizeLeftRight,
+      _DragHandle.topLeft || _DragHandle.bottomRight =>
+        SystemMouseCursors.resizeUpLeftDownRight,
+      _DragHandle.topRight || _DragHandle.bottomLeft =>
+        SystemMouseCursors.resizeUpRightDownLeft,
+    };
   }
 
   Size _fitSize(Size bounds, Size source) {

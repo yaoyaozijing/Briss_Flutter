@@ -38,6 +38,7 @@ class AppSettingsService {
     final languageModeIndex = raw['languageMode'] as int?;
     final accentModeIndex = raw['accentMode'] as int?;
     final oledOptimized = raw['oledOptimized'] as bool?;
+    final multiWindowMode = raw['multiWindowMode'] as bool?;
 
     return AppThemeSettings(
       themeMode: themeModeIndex != null &&
@@ -56,6 +57,7 @@ class AppSettingsService {
           ? AppAccentMode.values[accentModeIndex]
           : AppAccentMode.system,
       oledOptimized: oledOptimized ?? false,
+      multiWindowMode: multiWindowMode ?? false,
     );
   }
 
@@ -65,6 +67,7 @@ class AppSettingsService {
       'languageMode': settings.languageMode.index,
       'accentMode': settings.accentMode.index,
       'oledOptimized': settings.oledOptimized,
+      'multiWindowMode': settings.multiWindowMode,
     });
   }
 
@@ -75,25 +78,18 @@ class AppSettingsService {
     }
 
     final smartGroupingLevelIndex = raw['defaultSmartGroupingLevel'] as int?;
-    final androidExportModeIndex = raw['androidExportMode'] as int?;
     return AppGroupingSettings(
       defaultSmartGroupingLevel: smartGroupingLevelIndex != null &&
               smartGroupingLevelIndex >= 0 &&
               smartGroupingLevelIndex < SmartGroupingLevel.values.length
           ? SmartGroupingLevel.values[smartGroupingLevelIndex]
           : SmartGroupingLevel.balanced,
-      androidExportMode: androidExportModeIndex != null &&
-              androidExportModeIndex >= 0 &&
-              androidExportModeIndex < AndroidExportMode.values.length
-          ? AndroidExportMode.values[androidExportModeIndex]
-          : AndroidExportMode.askEveryTime,
     );
   }
 
   Future<void> saveGroupingSettings(AppGroupingSettings settings) async {
     await _box?.put(_groupingSettingsKey, <String, Object>{
       'defaultSmartGroupingLevel': settings.defaultSmartGroupingLevel.index,
-      'androidExportMode': settings.androidExportMode.index,
     });
   }
 }

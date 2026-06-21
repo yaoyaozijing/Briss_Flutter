@@ -8,7 +8,7 @@ import 'src/state/theme_controller.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
-  if (Platform.isWindows) {
+  if (Platform.isWindows || Platform.isMacOS) {
     await windowManager.ensureInitialized();
     const windowOptions = WindowOptions(
       titleBarStyle: TitleBarStyle.hidden,
