@@ -62,13 +62,23 @@ class ProCropperPdfApp extends StatelessWidget {
                 return content;
               }
               final mediaQuery = MediaQuery.of(context);
-              final topInset = math.max(20.0, mediaQuery.viewPadding.top);
+              final topInset = math.max(28.0, mediaQuery.viewPadding.top);
               return MediaQuery(
-                data: mediaQuery.removePadding(removeTop: true),
-                child: Padding(
-                  padding: EdgeInsets.only(top: topInset),
-                  child: content,
+                data: mediaQuery.copyWith(
+                  padding: EdgeInsets.fromLTRB(
+                    mediaQuery.padding.left,
+                    topInset,
+                    mediaQuery.padding.right,
+                    mediaQuery.padding.bottom,
+                  ),
+                  viewPadding: EdgeInsets.fromLTRB(
+                    mediaQuery.viewPadding.left,
+                    topInset,
+                    mediaQuery.viewPadding.right,
+                    mediaQuery.viewPadding.bottom,
+                  ),
                 ),
+                child: content,
               );
             },
             home: PdfCropApp(
