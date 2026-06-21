@@ -1,7 +1,7 @@
 name: procropper_pdf
 description: "ProCropper PDF，基于 Flutter 的 PDF 裁切工具。"
 publish_to: 'none'
-version: 0.2.0
+version: 0.2.1
 
 environment:
   sdk: ^3.11.5
