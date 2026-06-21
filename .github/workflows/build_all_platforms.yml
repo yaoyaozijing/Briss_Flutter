@@ -3,6 +3,18 @@ name: Build All Platforms
 on:
   workflow_dispatch:
     inputs:
+      build_platform:
+        description: Platform to build
+        required: false
+        default: all
+        type: choice
+        options:
+          - all
+          - android
+          - linux
+          - windows
+          - macos
+          - ios
       publish_release:
         description: Publish a GitHub Release after this manual run
         required: false
@@ -26,6 +38,7 @@ env:
 jobs:
   android:
     name: Android
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.build_platform == 'all' || github.event.inputs.build_platform == 'android'
     runs-on: ubuntu-latest
 
     steps:
@@ -82,6 +95,7 @@ jobs:
 
   linux:
     name: Linux
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.build_platform == 'all' || github.event.inputs.build_platform == 'linux'
     runs-on: ubuntu-latest
 
     steps:
@@ -106,6 +120,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            desktop-file-utils \
             clang \
             cmake \
             libblkid-dev \
@@ -134,15 +149,150 @@ jobs:
           cd build/linux/x64/release
           tar -czf "${APP_SLUG}-${BUILD_SUFFIX}-linux-x64.tar.gz" bundle
 
+      - name: Build Arch Linux Package
+        shell: bash
+        run: |
+          VERSION_PKG="${VERSION//-/_}"
+          PKG_ROOT="build/linux/x64/release/arch-pkg"
+          INSTALL_ROOT="$PKG_ROOT/usr"
+          APP_DIR="$INSTALL_ROOT/lib/procropper-pdf"
+          BIN_DIR="$INSTALL_ROOT/bin"
+          DESKTOP_DIR="$INSTALL_ROOT/share/applications"
+          ICON_DIR="$INSTALL_ROOT/share/icons/hicolor/1024x1024/apps"
+
+          rm -rf "$PKG_ROOT"
+          mkdir -p "$APP_DIR" "$BIN_DIR" "$DESKTOP_DIR" "$ICON_DIR"
+
+          cp -R build/linux/x64/release/bundle/. "$APP_DIR/"
+          ln -s "/usr/lib/procropper-pdf/procropper_pdf" "$BIN_DIR/procropper-pdf"
+          cp assets/branding/app_icon/app_icon_1024.png "$ICON_DIR/procropper-pdf.png"
+
+          cat > "$DESKTOP_DIR/procropper-pdf.desktop" <<'EOF'
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=ProCropper PDF
+          Comment=Smart PDF crop tool
+          Exec=/usr/bin/procropper-pdf %F
+          Icon=procropper-pdf
+          Terminal=false
+          Categories=Office;Graphics;Utility;
+          MimeType=application/pdf;
+          StartupNotify=true
+          EOF
+
+          INSTALLED_SIZE="$(du -sk "$PKG_ROOT" | cut -f1)"
+          cat > "$PKG_ROOT/.PKGINFO" <<EOF
+          pkgname=procropper-pdf
+          pkgbase=procropper-pdf
+          pkgver=$VERSION_PKG
+          pkgrel=1
+          pkgdesc=Smart PDF crop tool built with Flutter
+          url=https://github.com/${GITHUB_REPOSITORY}
+          builddate=$(date +%s)
+          packager=GitHub Actions
+          size=$INSTALLED_SIZE
+          arch=x86_64
+          license=custom
+          depend=gtk3
+          depend=glibc
+          depend=gcc-libs
+          depend=hicolor-icon-theme
+          depend=desktop-file-utils
+          EOF
+
+          bsdtar \
+            --format=mtree \
+            --options='!all,use-set,type,uid,gid,mode,time,size,md5,sha256,link' \
+            -cf "$PKG_ROOT/.MTREE" \
+            -C "$PKG_ROOT" \
+            .PKGINFO usr
+
+          cat > "$PKG_ROOT/.BUILDINFO" <<EOF
+          format = 2
+          pkgname = procropper-pdf
+          pkgbase = procropper-pdf
+          pkgver = $VERSION_PKG-1
+          pkgarch = x86_64
+          pkgbuild_sha256sum = SKIP
+          packager = GitHub Actions
+          builddate = $(date +%s)
+          builddir = /github/workspace
+          startdir = /github/workspace
+          buildtool = github-actions
+          buildtoolver = 1
+          EOF
+
+          cd "$PKG_ROOT"
+          bsdtar --zstd -cf "../${APP_SLUG}-${BUILD_SUFFIX}-linux-x86_64.pkg.tar.zst" .PKGINFO .MTREE .BUILDINFO usr
+
+      - name: Build AppImage
+        shell: bash
+        run: |
+          APPDIR="build/linux/x64/release/AppDir"
+          APP_NAME="ProCropper PDF"
+          APP_EXEC="procropper_pdf"
+          APPDESKTOP="$APPDIR/procropper-pdf.desktop"
+
+          rm -rf "$APPDIR"
+          mkdir -p \
+            "$APPDIR/usr/bin" \
+            "$APPDIR/usr/lib/procropper-pdf" \
+            "$APPDIR/usr/share/applications" \
+            "$APPDIR/usr/share/icons/hicolor/1024x1024/apps"
+
+          cp -R build/linux/x64/release/bundle/. "$APPDIR/usr/lib/procropper-pdf/"
+          ln -s ../lib/procropper-pdf/procropper_pdf "$APPDIR/usr/bin/procropper-pdf"
+          cp assets/branding/app_icon/app_icon_1024.png \
+            "$APPDIR/usr/share/icons/hicolor/1024x1024/apps/procropper-pdf.png"
+
+          cat > "$APPDIR/usr/share/applications/procropper-pdf.desktop" <<'EOF'
+          [Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=ProCropper PDF
+          Comment=Smart PDF crop tool
+          Exec=procropper-pdf %F
+          Icon=procropper-pdf
+          Terminal=false
+          Categories=Office;Graphics;Utility;
+          MimeType=application/pdf;
+          StartupNotify=true
+          EOF
+
+          cp "$APPDIR/usr/share/applications/procropper-pdf.desktop" "$APPDESKTOP"
+          cp "$APPDIR/usr/share/icons/hicolor/1024x1024/apps/procropper-pdf.png" "$APPDIR/procropper-pdf.png"
+
+          cat > "$APPDIR/AppRun" <<'EOF'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "$0")")"
+          export LD_LIBRARY_PATH="$HERE/usr/lib/procropper-pdf/lib:$HERE/usr/lib/procropper-pdf:$LD_LIBRARY_PATH"
+          exec "$HERE/usr/bin/procropper-pdf" "$@"
+          EOF
+          chmod +x "$APPDIR/AppRun"
+
+          curl -L \
+            "https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage" \
+            -o build/linux/x64/release/appimagetool.AppImage
+          chmod +x build/linux/x64/release/appimagetool.AppImage
+
+          ARCH=x86_64 build/linux/x64/release/appimagetool.AppImage \
+            "$APPDIR" \
+            "build/linux/x64/release/${APP_SLUG}-${BUILD_SUFFIX}-linux-x86_64.AppImage"
+
       - name: Upload Linux Artifact
         uses: actions/upload-artifact@v7
         with:
           name: linux-artifacts
-          path: build/linux/x64/release/${{ env.APP_SLUG }}-*.tar.gz
+          path: |
+            build/linux/x64/release/${{ env.APP_SLUG }}-*.tar.gz
+            build/linux/x64/release/${{ env.APP_SLUG }}-*.pkg.tar.zst
+            build/linux/x64/release/${{ env.APP_SLUG }}-*.AppImage
           if-no-files-found: error
 
   windows:
     name: Windows
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.build_platform == 'all' || github.event.inputs.build_platform == 'windows'
     runs-on: windows-latest
 
     steps:
@@ -210,6 +360,7 @@ jobs:
 
   macos:
     name: macOS
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.build_platform == 'all' || github.event.inputs.build_platform == 'macos'
     runs-on: macos-latest
 
     steps:
@@ -285,6 +436,7 @@ jobs:
 
   ios:
     name: iOS
+    if: github.event_name != 'workflow_dispatch' || github.event.inputs.build_platform == 'all' || github.event.inputs.build_platform == 'ios'
     runs-on: macos-latest
 
     steps:
@@ -333,7 +485,7 @@ jobs:
 
   release:
     name: Publish Release Assets
-    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_release == 'true')
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.publish_release == 'true' && github.event.inputs.build_platform == 'all')
     needs:
       - android
       - linux
@@ -382,6 +534,8 @@ jobs:
             release-artifacts/**/*.apk
             release-artifacts/**/*.ipa
             release-artifacts/**/*.tar.gz
+            release-artifacts/**/*.pkg.tar.zst
+            release-artifacts/**/*.AppImage
             release-artifacts/**/*.zip
             release-artifacts/**/*.dmg
             release-artifacts/**/*.msix
