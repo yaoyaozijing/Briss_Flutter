@@ -892,6 +892,21 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
       }
       if (Platform.isAndroid) {
         await _controller.export(destinationUri: destination);
+      } else if (Platform.isIOS) {
+        await _controller.export(destinationPath: destination);
+        final bytes = await File(destination).readAsBytes();
+        if (!mounted) {
+          return;
+        }
+        await FilePicker.saveFile(
+          dialogTitle: context.l10n.saveCroppedPdf,
+          fileName: _suggestedOutputFileName(),
+          type: FileType.custom,
+          allowedExtensions: const ['pdf'],
+          bytes: bytes,
+        );
+        await _controller.deleteTemporaryExport(destination);
+        _controller.dismissExportFeedback();
       } else {
         await _controller.export(destinationPath: destination);
       }
@@ -961,6 +976,9 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
       return _controller.createAndroidDocumentUri(
         fileName: _suggestedOutputFileName(),
       );
+    }
+    if (Platform.isIOS) {
+      return _controller.createTemporaryExportPath();
     }
     final result = await FilePicker.saveFile(
       dialogTitle: context.l10n.saveCroppedPdf,
