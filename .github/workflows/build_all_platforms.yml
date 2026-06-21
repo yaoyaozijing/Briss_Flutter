@@ -1,0 +1,339 @@
+name: Build All Platforms
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: build-all-platforms-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_SLUG: procropper-pdf
+
+jobs:
+  android:
+    name: Android
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve Build Metadata
+        shell: bash
+        run: |
+          VERSION="$(grep '^version:' pubspec.yaml | head -n1 | awk '{print $2}')"
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            BUILD_SUFFIX="v${VERSION}"
+          else
+            BUILD_SUFFIX="v${VERSION}-${SHORT_SHA}"
+          fi
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "SHORT_SHA=${SHORT_SHA}" >> "$GITHUB_ENV"
+          echo "BUILD_SUFFIX=${BUILD_SUFFIX}" >> "$GITHUB_ENV"
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      - name: Build Android APKs
+        run: flutter build apk --release --split-per-abi
+
+      - name: Rename Android APKs
+        shell: bash
+        run: |
+          cd build/app/outputs/flutter-apk
+          mv app-armeabi-v7a-release.apk "${APP_SLUG}-${BUILD_SUFFIX}-android-armeabi-v7a.apk"
+          mv app-arm64-v8a-release.apk "${APP_SLUG}-${BUILD_SUFFIX}-android-arm64-v8a.apk"
+          mv app-x86_64-release.apk "${APP_SLUG}-${BUILD_SUFFIX}-android-x86_64.apk"
+
+      - name: Upload Android Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-artifacts
+          path: |
+            build/app/outputs/flutter-apk/${{ env.APP_SLUG }}-*.apk
+          if-no-files-found: error
+
+  linux:
+    name: Linux
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve Build Metadata
+        shell: bash
+        run: |
+          VERSION="$(grep '^version:' pubspec.yaml | head -n1 | awk '{print $2}')"
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            BUILD_SUFFIX="v${VERSION}"
+          else
+            BUILD_SUFFIX="v${VERSION}-${SHORT_SHA}"
+          fi
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "SHORT_SHA=${SHORT_SHA}" >> "$GITHUB_ENV"
+          echo "BUILD_SUFFIX=${BUILD_SUFFIX}" >> "$GITHUB_ENV"
+
+      - name: Install Linux Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            libblkid-dev \
+            libgtk-3-dev \
+            liblzma-dev \
+            ninja-build \
+            pkg-config
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Linux Desktop
+        run: flutter config --enable-linux-desktop
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      - name: Build Linux Bundle
+        run: flutter build linux --release
+
+      - name: Package Linux Bundle
+        run: |
+          cd build/linux/x64/release
+          tar -czf "${APP_SLUG}-${BUILD_SUFFIX}-linux-x64.tar.gz" bundle
+
+      - name: Upload Linux Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-artifacts
+          path: build/linux/x64/release/${{ env.APP_SLUG }}-*.tar.gz
+          if-no-files-found: error
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve Build Metadata
+        shell: powershell
+        run: |
+          $VERSION = (Select-String -Path pubspec.yaml -Pattern '^version:' | Select-Object -First 1 | ForEach-Object { ($_ -split '\s+')[1] }).Trim()
+          $SHORT_SHA = (git rev-parse --short HEAD).Trim()
+          if ("${env:GITHUB_REF}" -like "refs/tags/v*") {
+            $BUILD_SUFFIX = "v$VERSION"
+          } else {
+            $BUILD_SUFFIX = "v$VERSION-$SHORT_SHA"
+          }
+          "VERSION=$VERSION" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "SHORT_SHA=$SHORT_SHA" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "BUILD_SUFFIX=$BUILD_SUFFIX" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable Windows Desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      - name: Build Windows App
+        run: flutter build windows --release
+
+      - name: Create MSIX
+        run: dart run msix:create
+
+      - name: Rename MSIX
+        shell: powershell
+        run: |
+          $msix = Get-ChildItem -Path build/windows -Filter *.msix -Recurse | Select-Object -First 1
+          if (-not $msix) {
+            throw "MSIX file not found."
+          }
+          $target = Join-Path $msix.DirectoryName "${env:APP_SLUG}-${env:BUILD_SUFFIX}-windows-x64.msix"
+          Move-Item -LiteralPath $msix.FullName -Destination $target -Force
+
+      - name: Package Windows Bundle
+        shell: powershell
+        run: |
+          Compress-Archive `
+            -Path build/windows/x64/runner/Release/* `
+            -DestinationPath build/windows/x64/runner/${env:APP_SLUG}-${env:BUILD_SUFFIX}-windows-x64.zip `
+            -Force
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-artifacts
+          path: |
+            build/windows/x64/runner/${{ env.APP_SLUG }}-*.zip
+            build/windows/**/*.msix
+          if-no-files-found: error
+
+  macos:
+    name: macOS
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve Build Metadata
+        shell: bash
+        run: |
+          VERSION="$(grep '^version:' pubspec.yaml | head -n1 | awk '{print $2}')"
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            BUILD_SUFFIX="v${VERSION}"
+          else
+            BUILD_SUFFIX="v${VERSION}-${SHORT_SHA}"
+          fi
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "SHORT_SHA=${SHORT_SHA}" >> "$GITHUB_ENV"
+          echo "BUILD_SUFFIX=${BUILD_SUFFIX}" >> "$GITHUB_ENV"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Enable macOS Desktop
+        run: flutter config --enable-macos-desktop
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      - name: Build macOS App
+        run: flutter build macos --release
+
+      - name: Package macOS ZIP
+        run: |
+          cd build/macos/Build/Products/Release
+          ditto -c -k --sequesterRsrc --keepParent Runner.app "${APP_SLUG}-${BUILD_SUFFIX}-macos.zip"
+
+      - name: Package macOS DMG
+        run: |
+          cd build/macos/Build/Products/Release
+          mkdir -p dmg-root
+          cp -R Runner.app dmg-root/ProCropper\ PDF.app
+          hdiutil create \
+            -volname "ProCropper PDF" \
+            -srcfolder dmg-root \
+            -ov \
+            -format UDZO \
+            "${APP_SLUG}-${BUILD_SUFFIX}-macos.dmg"
+
+      - name: Upload macOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-artifacts
+          path: |
+            build/macos/Build/Products/Release/${{ env.APP_SLUG }}-*.zip
+            build/macos/Build/Products/Release/${{ env.APP_SLUG }}-*.dmg
+          if-no-files-found: error
+
+  ios:
+    name: iOS
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve Build Metadata
+        shell: bash
+        run: |
+          VERSION="$(grep '^version:' pubspec.yaml | head -n1 | awk '{print $2}')"
+          SHORT_SHA="$(git rev-parse --short HEAD)"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            BUILD_SUFFIX="v${VERSION}"
+          else
+            BUILD_SUFFIX="v${VERSION}-${SHORT_SHA}"
+          fi
+          echo "VERSION=${VERSION}" >> "$GITHUB_ENV"
+          echo "SHORT_SHA=${SHORT_SHA}" >> "$GITHUB_ENV"
+          echo "BUILD_SUFFIX=${BUILD_SUFFIX}" >> "$GITHUB_ENV"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter Pub Get
+        run: flutter pub get
+
+      - name: Build iOS App Without Codesign
+        run: flutter build ios --release --no-codesign
+
+      - name: Package Unsigned IPA
+        run: |
+          mkdir -p build/ios/ipa/Payload
+          cp -R build/ios/iphoneos/Runner.app build/ios/ipa/Payload/Runner.app
+          cd build/ios/ipa
+          zip -r "${APP_SLUG}-${BUILD_SUFFIX}-ios-unsigned.ipa" Payload
+
+      - name: Upload iOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-artifacts
+          path: build/ios/ipa/${{ env.APP_SLUG }}-*.ipa
+          if-no-files-found: error
+
+  release:
+    name: Publish Release Assets
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs:
+      - android
+      - linux
+      - windows
+      - macos
+      - ios
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-artifacts/**/*.apk
+            release-artifacts/**/*.ipa
+            release-artifacts/**/*.tar.gz
+            release-artifacts/**/*.zip
+            release-artifacts/**/*.dmg
+            release-artifacts/**/*.msix
+          generate_release_notes: true
