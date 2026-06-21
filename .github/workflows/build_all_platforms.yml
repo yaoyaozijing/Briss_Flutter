@@ -278,7 +278,7 @@ jobs:
             -o build/linux/x64/release/appimagetool.AppImage
           chmod +x build/linux/x64/release/appimagetool.AppImage
 
-          ARCH=x86_64 build/linux/x64/release/appimagetool.AppImage \
+          ARCH=x86_64 build/linux/x64/release/appimagetool.AppImage --appimage-extract-and-run \
             "$APPDIR" \
             "build/linux/x64/release/${APP_SLUG}-${BUILD_SUFFIX}-linux-x86_64.AppImage"
 
