@@ -1107,11 +1107,6 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
                       );
                     },
                   ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _smartGroupingLevelDescription(smartGroupingLevel.value),
-                    style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
-                  ),
                   const SizedBox(height: 14),
                   Text(l10n.edgeFilterPercentage),
                   const SizedBox(height: 6),
@@ -1604,18 +1599,6 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
         return l10n.groupingLevelBalanced;
       case SmartGroupingLevel.strict:
         return l10n.groupingLevelStrict;
-    }
-  }
-
-  String _smartGroupingLevelDescription(SmartGroupingLevel level) {
-    final l10n = AppLocalizations.current;
-    switch (level) {
-      case SmartGroupingLevel.basic:
-        return l10n.groupingLevelBasicDescription;
-      case SmartGroupingLevel.balanced:
-        return l10n.groupingLevelBalancedDescription;
-      case SmartGroupingLevel.strict:
-        return l10n.groupingLevelStrictDescription;
     }
   }
 

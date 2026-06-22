@@ -47,6 +47,13 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final l10n = context.l10n;
     final colorScheme = Theme.of(context).colorScheme;
+    final effectiveBrightness = _effectiveThemeBrightness();
+    final oledConfigurable = effectiveBrightness == Brightness.dark;
+    final eInkConfigurable = effectiveBrightness == Brightness.light;
+    final micaConfigurable =
+        Platform.isWindows &&
+        !(widget.themeController.settings.eInkOptimized &&
+            effectiveBrightness == Brightness.light);
 
     return Scaffold(
       appBar: AppBar(
@@ -85,26 +92,35 @@ class _SettingsPageState extends State<SettingsPage> {
           SettingsSection(
             title: Text(l10n.language),
             tiles: [
-              _SegmentedSettingsTile<AppLanguageMode>(
+              SettingsTile(
                 leading: const Icon(Icons.language_rounded),
                 title: Text(l10n.language),
-                selectedValue: widget.themeController.settings.languageMode,
-                options: AppLanguageMode.values
-                    .map(
-                      (mode) => _SegmentedOption(
-                        value: mode,
-                        label: _languageModeLabel(mode),
-                      ),
-                    )
-                    .toList(),
-                onChanged: widget.themeController.updateLanguageMode,
+                trailing: DropdownButtonHideUnderline(
+                  child: DropdownButton<AppLanguageMode>(
+                    value: widget.themeController.settings.languageMode,
+                    borderRadius: BorderRadius.circular(12),
+                    onChanged: (value) {
+                      if (value != null) {
+                        widget.themeController.updateLanguageMode(value);
+                      }
+                    },
+                    items: AppLanguageMode.values
+                        .map(
+                          (mode) => DropdownMenuItem<AppLanguageMode>(
+                            value: mode,
+                            child: Text(_languageModeLabel(mode)),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
               ),
             ],
           ),
           SettingsSection(
             title: Text(l10n.appearance),
             tiles: [
-              _SegmentedSettingsTile<AppThemeMode>(
+              SettingsTile(
                 leading:
                     widget.themeController.settings.themeMode ==
                         AppThemeMode.system
@@ -114,16 +130,25 @@ class _SettingsPageState extends State<SettingsPage> {
                     ? const Icon(Icons.light_mode_rounded)
                     : const Icon(Icons.dark_mode_rounded),
                 title: Text('${l10n.darkMode} / ${l10n.lightMode}'),
-                selectedValue: widget.themeController.settings.themeMode,
-                options: AppThemeMode.values
-                    .map(
-                      (mode) => _SegmentedOption(
-                        value: mode,
-                        label: _themeModeLabel(mode),
-                      ),
-                    )
-                    .toList(),
-                onChanged: widget.themeController.updateThemeMode,
+                trailing: DropdownButtonHideUnderline(
+                  child: DropdownButton<AppThemeMode>(
+                    value: widget.themeController.settings.themeMode,
+                    borderRadius: BorderRadius.circular(12),
+                    onChanged: (value) {
+                      if (value != null) {
+                        widget.themeController.updateThemeMode(value);
+                      }
+                    },
+                    items: AppThemeMode.values
+                        .map(
+                          (mode) => DropdownMenuItem<AppThemeMode>(
+                            value: mode,
+                            child: Text(_themeModeLabel(mode)),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
               ),
               SettingsTile(
                 leading: CircleAvatar(
@@ -155,15 +180,25 @@ class _SettingsPageState extends State<SettingsPage> {
                 initialValue: widget.themeController.settings.oledOptimized,
                 leading: const Icon(Icons.contrast_rounded),
                 title: Text(l10n.enableOledOptimization),
-                description: Text(l10n.oledOnlyInDark),
-                onToggle: widget.themeController.updateOledOptimized,
+                description: oledConfigurable
+                    ? null
+                    : Text(l10n.oledConfigurableOnlyInDark),
+                enabled: oledConfigurable,
+                onToggle: oledConfigurable
+                    ? widget.themeController.updateOledOptimized
+                    : null,
               ),
               SettingsTile.switchTile(
                 initialValue: widget.themeController.settings.eInkOptimized,
                 leading: const Icon(Icons.auto_awesome_mosaic_rounded),
                 title: Text(l10n.enableEInkOptimization),
-                description: Text(l10n.eInkOnlyInLight),
-                onToggle: widget.themeController.updateEInkOptimized,
+                description: eInkConfigurable
+                    ? null
+                    : Text(l10n.eInkConfigurableOnlyInLight),
+                enabled: eInkConfigurable,
+                onToggle: eInkConfigurable
+                    ? widget.themeController.updateEInkOptimized
+                    : null,
               ),
               if (Platform.isWindows)
                 SettingsTile.switchTile(
@@ -171,8 +206,13 @@ class _SettingsPageState extends State<SettingsPage> {
                       widget.themeController.settings.windowsMicaEnabled,
                   leading: const Icon(Icons.blur_on_rounded),
                   title: Text(l10n.enableWindowsMica),
-                  description: Text(l10n.windowsMicaDescription),
-                  onToggle: widget.themeController.updateWindowsMicaEnabled,
+                  description: micaConfigurable
+                      ? null
+                      : Text(l10n.windowsMicaUnavailableWhenEInk),
+                  enabled: micaConfigurable,
+                  onToggle: micaConfigurable
+                      ? widget.themeController.updateWindowsMicaEnabled
+                      : null,
                 ),
               if (isFlutterWindowingAvailable)
                 SettingsTile.switchTile(
@@ -187,7 +227,7 @@ class _SettingsPageState extends State<SettingsPage> {
           SettingsSection(
             title: Text(l10n.documents),
             tiles: [
-              _SegmentedSettingsTile<SmartGroupingLevel>(
+              SettingsTile(
                 leading: const Icon(Icons.layers_outlined),
                 title: Text(l10n.defaultGroupingMode),
                 description: Text(
@@ -198,16 +238,27 @@ class _SettingsPageState extends State<SettingsPage> {
                       : l10n.loading,
                 ),
                 enabled: _groupingSettingsLoaded,
-                selectedValue: _groupingSettings.defaultSmartGroupingLevel,
-                options: SmartGroupingLevel.values
-                    .map(
-                      (level) => _SegmentedOption(
-                        value: level,
-                        label: _smartGroupingLevelLabel(level),
-                      ),
-                )
-                    .toList(),
-                onChanged: _updateDefaultGroupingLevel,
+                trailing: DropdownButtonHideUnderline(
+                  child: DropdownButton<SmartGroupingLevel>(
+                    value: _groupingSettings.defaultSmartGroupingLevel,
+                    borderRadius: BorderRadius.circular(12),
+                    onChanged: _groupingSettingsLoaded
+                        ? (value) {
+                            if (value != null) {
+                              _updateDefaultGroupingLevel(value);
+                            }
+                          }
+                        : null,
+                    items: SmartGroupingLevel.values
+                        .map(
+                          (level) => DropdownMenuItem<SmartGroupingLevel>(
+                            value: level,
+                            child: Text(_smartGroupingLevelLabel(level)),
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
               ),
               SettingsTile.switchTile(
                 initialValue: _groupingSettings.defaultSeparateOddEven,
@@ -428,6 +479,8 @@ class _SettingsPageState extends State<SettingsPage> {
         return l10n.simplifiedChinese;
       case AppLanguageMode.en:
         return l10n.english;
+      case AppLanguageMode.ja:
+        return l10n.japanese;
     }
   }
 
@@ -462,69 +515,13 @@ class _SettingsPageState extends State<SettingsPage> {
         return l10n.graphite;
     }
   }
-}
 
-class _SegmentedSettingsTile<T> extends AbstractSettingsTile {
-  const _SegmentedSettingsTile({
-    required this.leading,
-    required this.title,
-    required this.selectedValue,
-    required this.options,
-    required this.onChanged,
-    this.description,
-    this.enabled = true,
-  });
-
-  final Widget leading;
-  final Widget title;
-  final Widget? description;
-  final T selectedValue;
-  final List<_SegmentedOption<T>> options;
-  final ValueChanged<T> onChanged;
-  final bool enabled;
-
-  @override
-  Widget build(BuildContext context) {
-    return SettingsTile(
-      leading: leading,
-      title: title,
-      description: description,
-      enabled: enabled,
-      trailing: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
-        child: SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SegmentedButton<T>(
-            showSelectedIcon: false,
-            segments: options
-                .map(
-                  (option) => ButtonSegment<T>(
-                    value: option.value,
-                    label: Text(option.label),
-                  ),
-                )
-                .toList(),
-            selected: <T>{selectedValue},
-            onSelectionChanged: enabled
-                ? (selection) {
-                    if (selection.isNotEmpty) {
-                      onChanged(selection.first);
-                    }
-                  }
-                : null,
-          ),
-        ),
-      ),
-    );
+  Brightness _effectiveThemeBrightness() {
+    final mode = widget.themeController.settings.themeMode;
+    return switch (mode) {
+      AppThemeMode.system => View.of(context).platformDispatcher.platformBrightness,
+      AppThemeMode.light => Brightness.light,
+      AppThemeMode.dark => Brightness.dark,
+    };
   }
-}
-
-class _SegmentedOption<T> {
-  const _SegmentedOption({
-    required this.value,
-    required this.label,
-  });
-
-  final T value;
-  final String label;
 }

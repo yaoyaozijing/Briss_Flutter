@@ -10,6 +10,7 @@ enum AppLanguageMode {
   system,
   zhCn,
   en,
+  ja,
 }
 
 enum AppAccentMode {

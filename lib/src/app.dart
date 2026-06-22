@@ -45,6 +45,7 @@ class ProCropperPdfApp extends StatelessWidget {
             supportedLocales: const [
               Locale('zh', 'CN'),
               Locale('en'),
+              Locale('ja'),
             ],
             localeResolutionCallback: (locale, supportedLocales) {
               if (locale == null) {
@@ -52,6 +53,9 @@ class ProCropperPdfApp extends StatelessWidget {
               }
               if (locale.languageCode.toLowerCase().startsWith('zh')) {
                 return const Locale('zh', 'CN');
+              }
+              if (locale.languageCode.toLowerCase().startsWith('ja')) {
+                return const Locale('ja');
               }
               return const Locale('en');
             },

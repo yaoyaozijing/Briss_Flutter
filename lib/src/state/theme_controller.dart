@@ -38,6 +38,8 @@ class ThemeController extends ChangeNotifier {
         return const Locale('zh', 'CN');
       case AppLanguageMode.en:
         return const Locale('en');
+      case AppLanguageMode.ja:
+        return const Locale('ja');
     }
   }
 

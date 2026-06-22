@@ -333,22 +333,19 @@ class _PdfCropAppState extends State<PdfCropApp> {
       return;
     }
 
+    final config = await _showBatchCropDialog();
+    if (config == null || !mounted) {
+      return;
+    }
+
     if (Platform.isAndroid) {
-      await _runAndroidBatchCrop();
+      await _runAndroidBatchCrop(config);
       return;
     }
 
-    final inputDirectory = await _pickDirectory(
-      title: l10n.selectBatchInputDirectory,
-    );
-    if (inputDirectory == null || inputDirectory.isEmpty) {
-      return;
-    }
-
-    final outputDirectory = await _pickDirectory(
-      title: l10n.selectBatchOutputDirectory,
-    );
-    if (outputDirectory == null || outputDirectory.isEmpty) {
+    final inputDirectory = config.inputPath;
+    final outputDirectory = config.outputPath;
+    if (inputDirectory.isEmpty || outputDirectory.isEmpty) {
       return;
     }
 
@@ -374,7 +371,7 @@ class _PdfCropAppState extends State<PdfCropApp> {
           );
       final pdfFiles = Directory(inputDirectory)
           .listSync(
-            recursive: _groupingSettings.batchCropRecursive,
+            recursive: config.settings.batchCropRecursive,
             followLinks: false,
           )
           .whereType<File>()
@@ -422,8 +419,8 @@ class _PdfCropAppState extends State<PdfCropApp> {
           await batchController.openFile(
             file.path,
             initialSettings: ClusterSettings(
-              smartGroupingLevel: _groupingSettings.defaultSmartGroupingLevel,
-              separateOddEven: _groupingSettings.defaultSeparateOddEven,
+              smartGroupingLevel: config.settings.defaultSmartGroupingLevel,
+              separateOddEven: config.settings.defaultSeparateOddEven,
             ),
             passwordProvider: _buildPasswordProvider(
               file.path,
@@ -434,6 +431,7 @@ class _PdfCropAppState extends State<PdfCropApp> {
             inputDirectory: normalizedInputDirectory,
             sourcePath: file.path,
             outputDirectory: normalizedOutputDirectory,
+            settings: config.settings,
           );
           await Directory(p.dirname(outputPath)).create(recursive: true);
           await batchController.export(destinationPath: outputPath);
@@ -483,34 +481,11 @@ class _PdfCropAppState extends State<PdfCropApp> {
     }
   }
 
-  Future<void> _runAndroidBatchCrop() async {
+  Future<void> _runAndroidBatchCrop(_BatchCropConfig config) async {
     final l10n = context.l10n;
-    final confirmedInput = await _showBatchDirectoryPrompt(
-      title: l10n.batchInputDirectoryPromptTitle,
-      description: l10n.batchInputDirectoryPromptDescription,
-    );
-    if (confirmedInput != true) {
-      return;
-    }
-
-    final inputTreeUri = await _androidDocumentTreeService.pickDirectoryTree();
-    if (inputTreeUri == null || inputTreeUri.isEmpty) {
-      return;
-    }
-
-    if (!mounted) {
-      return;
-    }
-    final confirmedOutput = await _showBatchDirectoryPrompt(
-      title: l10n.batchOutputDirectoryPromptTitle,
-      description: l10n.batchOutputDirectoryPromptDescription,
-    );
-    if (confirmedOutput != true) {
-      return;
-    }
-
-    final outputTreeUri = await _androidDocumentTreeService.pickDirectoryTree();
-    if (outputTreeUri == null || outputTreeUri.isEmpty) {
+    final inputTreeUri = config.inputPath;
+    final outputTreeUri = config.outputPath;
+    if (inputTreeUri.isEmpty || outputTreeUri.isEmpty) {
       return;
     }
 
@@ -528,7 +503,7 @@ class _PdfCropAppState extends State<PdfCropApp> {
 
       final pdfFiles = await _androidDocumentTreeService.listPdfFilesInTree(
         treeUri: inputTreeUri,
-        recursive: _groupingSettings.batchCropRecursive,
+        recursive: config.settings.batchCropRecursive,
       );
 
       if (pdfFiles.isEmpty) {
@@ -576,8 +551,8 @@ class _PdfCropAppState extends State<PdfCropApp> {
           await batchController.openFile(
             cachedInputPath,
             initialSettings: ClusterSettings(
-              smartGroupingLevel: _groupingSettings.defaultSmartGroupingLevel,
-              separateOddEven: _groupingSettings.defaultSeparateOddEven,
+              smartGroupingLevel: config.settings.defaultSmartGroupingLevel,
+              separateOddEven: config.settings.defaultSeparateOddEven,
             ),
             passwordProvider: _buildPasswordProvider(
               cachedInputPath,
@@ -592,7 +567,10 @@ class _PdfCropAppState extends State<PdfCropApp> {
           await _androidDocumentTreeService.writeFileToTree(
             treeUri: outputTreeUri,
             relativeDirectory: file.relativeDirectory,
-            fileName: _suggestedOutputFileName(file.fileName),
+            fileName: _suggestedOutputFileName(
+              file.fileName,
+              settings: config.settings,
+            ),
             sourcePath: temporaryExportPath,
           );
           successCount++;
@@ -657,30 +635,239 @@ class _PdfCropAppState extends State<PdfCropApp> {
     }
   }
 
-  Future<bool?> _showBatchDirectoryPrompt({
-    required String title,
-    required String description,
-  }) {
-    return showDialog<bool>(
+  Future<_BatchCropConfig?> _showBatchCropDialog() async {
+    final inputController = TextEditingController();
+    final outputController = TextEditingController();
+    var settings = _groupingSettings;
+
+    final result = await showDialog<_BatchCropConfig>(
       context: context,
+      barrierDismissible: false,
       builder: (context) {
         final l10n = context.l10n;
-        return AlertDialog(
-          title: Text(title),
-          content: Text(description),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(false),
-              child: Text(l10n.cancel),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(context).pop(true),
-              child: Text(l10n.continueToSelectFolder),
-            ),
-          ],
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            Future<void> pickInputDirectory() async {
+              final selectedPath = await _pickBatchDirectory(
+                title: l10n.selectBatchInputDirectory,
+              );
+              if (selectedPath == null || selectedPath.isEmpty) {
+                return;
+              }
+              inputController.text = selectedPath;
+              setDialogState(() {});
+            }
+
+            Future<void> pickOutputDirectory() async {
+              final selectedPath = await _pickBatchDirectory(
+                title: l10n.selectBatchOutputDirectory,
+              );
+              if (selectedPath == null || selectedPath.isEmpty) {
+                return;
+              }
+              outputController.text = selectedPath;
+              setDialogState(() {});
+            }
+
+            final canStart =
+                inputController.text.trim().isNotEmpty &&
+                outputController.text.trim().isNotEmpty;
+
+            return AlertDialog(
+              title: Text(l10n.batchCropDialogTitle),
+              content: SizedBox(
+                width: 560,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(l10n.batchCropDialogDescription),
+                      const SizedBox(height: 20),
+                      Text(
+                        l10n.batchCropPathSection,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildBatchPathTile(
+                        context: context,
+                        title: l10n.selectBatchInputDirectory,
+                        value: inputController.text,
+                        onPressed: pickInputDirectory,
+                      ),
+                      const SizedBox(height: 12),
+                      _buildBatchPathTile(
+                        context: context,
+                        title: l10n.selectBatchOutputDirectory,
+                        value: outputController.text,
+                        onPressed: pickOutputDirectory,
+                      ),
+                      const SizedBox(height: 20),
+                      Text(
+                        l10n.batchCropOptionsSection,
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: SmartGroupingLevel.values.map((level) {
+                          return ChoiceChip(
+                            label: Text(_smartGroupingLevelLabel(level)),
+                            selected:
+                                settings.defaultSmartGroupingLevel == level,
+                            onSelected: (_) {
+                              settings = settings.copyWith(
+                                defaultSmartGroupingLevel: level,
+                              );
+                              setDialogState(() {});
+                            },
+                          );
+                        }).toList(growable: false),
+                      ),
+                      const SizedBox(height: 12),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: settings.defaultSeparateOddEven,
+                        title: Text(l10n.defaultSeparateOddEvenForNewPdf),
+                        subtitle: Text(
+                          l10n.defaultSeparateOddEvenForNewPdfDescription,
+                        ),
+                        onChanged: (value) {
+                          settings = settings.copyWith(
+                            defaultSeparateOddEven: value,
+                          );
+                          setDialogState(() {});
+                        },
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: settings.batchCropRecursive,
+                        title: Text(l10n.batchCropRecursive),
+                        subtitle: Text(l10n.batchCropRecursiveDescription),
+                        onChanged: (value) {
+                          settings = settings.copyWith(
+                            batchCropRecursive: value,
+                          );
+                          setDialogState(() {});
+                        },
+                      ),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        value: settings.useOriginalFileNameForExport,
+                        title: Text(l10n.useOriginalFileNameForExport),
+                        subtitle: Text(
+                          l10n.useOriginalFileNameForExportDescription,
+                        ),
+                        onChanged: (value) {
+                          settings = settings.copyWith(
+                            useOriginalFileNameForExport: value,
+                          );
+                          setDialogState(() {});
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text(l10n.cancel),
+                ),
+                FilledButton(
+                  onPressed: canStart
+                      ? () {
+                          Navigator.of(context).pop(
+                            _BatchCropConfig(
+                              inputPath: inputController.text.trim(),
+                              outputPath: outputController.text.trim(),
+                              settings: settings,
+                            ),
+                          );
+                        }
+                      : null,
+                  child: Text(l10n.startBatchCrop),
+                ),
+              ],
+            );
+          },
         );
       },
     );
+
+    inputController.dispose();
+    outputController.dispose();
+    return result;
+  }
+
+  Widget _buildBatchPathTile({
+    required BuildContext context,
+    required String title,
+    required String value,
+    required VoidCallback onPressed,
+  }) {
+    final l10n = context.l10n;
+    final hasValue = value.trim().isNotEmpty;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  hasValue ? value : l10n.batchPathNotSelected,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: hasValue
+                        ? colorScheme.onSurface
+                        : colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          OutlinedButton(
+            onPressed: onPressed,
+            child: Text(hasValue ? l10n.changeFolder : l10n.chooseFolder),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<String?> _pickBatchDirectory({required String title}) async {
+    if (Platform.isAndroid) {
+      return _androidDocumentTreeService.pickDirectoryTree();
+    }
+    return _pickDirectory(title: title);
+  }
+
+  String _smartGroupingLevelLabel(SmartGroupingLevel level) {
+    final l10n = AppLocalizations.current;
+    switch (level) {
+      case SmartGroupingLevel.basic:
+        return l10n.groupingLevelBasic;
+      case SmartGroupingLevel.balanced:
+        return l10n.groupingModeBalanced;
+      case SmartGroupingLevel.strict:
+        return l10n.groupingLevelStrict;
+    }
   }
 
   Future<void> _handleDropFiles(List<dynamic> files) async {
@@ -794,6 +981,7 @@ class _PdfCropAppState extends State<PdfCropApp> {
     required String inputDirectory,
     required String sourcePath,
     required String outputDirectory,
+    required AppGroupingSettings settings,
   }) {
     final normalizedSourcePath = p.normalize(p.absolute(sourcePath));
     final relativeSourcePath = p.relative(
@@ -802,7 +990,10 @@ class _PdfCropAppState extends State<PdfCropApp> {
     );
     final sourceDirectory = p.dirname(relativeSourcePath);
     final sourceFileName = p.basename(relativeSourcePath);
-    final outputFileName = _suggestedOutputFileName(sourceFileName);
+    final outputFileName = _suggestedOutputFileName(
+      sourceFileName,
+      settings: settings,
+    );
     return sourceDirectory == '.' || sourceDirectory.isEmpty
         ? p.join(outputDirectory, outputFileName)
         : p.join(outputDirectory, sourceDirectory, outputFileName);
@@ -833,8 +1024,12 @@ class _PdfCropAppState extends State<PdfCropApp> {
         p.isWithin(normalizedDirectoryPath, normalizedTargetPath);
   }
 
-  String _suggestedOutputFileName(String fileName) {
-    if (_groupingSettings.useOriginalFileNameForExport) {
+  String _suggestedOutputFileName(
+    String fileName, {
+    AppGroupingSettings? settings,
+  }) {
+    final effectiveSettings = settings ?? _groupingSettings;
+    if (effectiveSettings.useOriginalFileNameForExport) {
       return fileName;
     }
     if (fileName.toLowerCase().endsWith('.pdf')) {
@@ -984,4 +1179,16 @@ class _PdfCropAppState extends State<PdfCropApp> {
         settings.eInkOptimized && brightness == Brightness.light;
     return settings.windowsMicaEnabled && !eInkActive;
   }
+}
+
+class _BatchCropConfig {
+  const _BatchCropConfig({
+    required this.inputPath,
+    required this.outputPath,
+    required this.settings,
+  });
+
+  final String inputPath;
+  final String outputPath;
+  final AppGroupingSettings settings;
 }
