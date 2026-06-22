@@ -77,36 +77,7 @@ class _PdfCropPreviewPageState extends State<PdfCropPreviewPage> {
                   icon: const Icon(Icons.chevron_left_rounded),
                   label: Text(context.l10n.previousPage),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 88),
-                        child: TextField(
-                          controller: _pageController,
-                          textAlign: TextAlign.center,
-                          keyboardType: TextInputType.number,
-                          textInputAction: TextInputAction.go,
-                          onSubmitted: (_) => _submitPageJump(),
-                          decoration: InputDecoration(
-                            isDense: true,
-                            border: const OutlineInputBorder(),
-                            labelText: context.l10n.pageNumber,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        context.l10n.totalPageCount(widget.project.pageCount),
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                const Spacer(),
                 const SizedBox(width: 12),
                 OutlinedButton.icon(
                   onPressed: _currentPage < widget.project.pageCount
@@ -126,11 +97,33 @@ class _PdfCropPreviewPageState extends State<PdfCropPreviewPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        context.l10n.previewPageLabel(_currentPage),
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 88),
+                            child: TextField(
+                              controller: _pageController,
+                              textAlign: TextAlign.center,
+                              keyboardType: TextInputType.number,
+                              textInputAction: TextInputAction.go,
+                              onSubmitted: (_) => _submitPageJump(),
+                              decoration: InputDecoration(
+                                isDense: true,
+                                border: const OutlineInputBorder(),
+                                labelText: context.l10n.pageNumber,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            context.l10n.totalPageCount(widget.project.pageCount),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
                       const SizedBox(height: 12),
                       Expanded(

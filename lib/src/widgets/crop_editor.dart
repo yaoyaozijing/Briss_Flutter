@@ -56,6 +56,7 @@ class CropEditor extends StatefulWidget {
     required this.selectedRectIndex,
     required this.colorScheme,
     required this.allowCropOutsidePage,
+    required this.scaleWithWindowResize,
     required this.onRectSelected,
     required this.onRectChanged,
     required this.onRectCreated,
@@ -73,6 +74,7 @@ class CropEditor extends StatefulWidget {
   final int selectedRectIndex;
   final ColorScheme colorScheme;
   final bool allowCropOutsidePage;
+  final bool scaleWithWindowResize;
   final ValueChanged<int> onRectSelected;
   final ValueChanged<CropRect> onRectChanged;
   final ValueChanged<CropRect> onRectCreated;
@@ -134,7 +136,8 @@ class _CropEditorState extends State<CropEditor> {
     }
     if (oldWidget.previewBytes != widget.previewBytes ||
         oldWidget.previewSize != widget.previewSize ||
-        oldWidget.allowCropOutsidePage != widget.allowCropOutsidePage) {
+        oldWidget.allowCropOutsidePage != widget.allowCropOutsidePage ||
+        oldWidget.scaleWithWindowResize != widget.scaleWithWindowResize) {
       _baseFittedSize = null;
       _effectiveContentPadding = null;
       _zoom = 1;
@@ -158,7 +161,17 @@ class _CropEditorState extends State<CropEditor> {
       builder: (context, constraints) {
         _viewportSize = constraints.biggest;
         _effectiveContentPadding ??= widget.contentPadding;
-        _baseFittedSize ??= _fitSize(_contentRectFor(_viewportSize).size, widget.previewSize);
+        if (widget.scaleWithWindowResize) {
+          _baseFittedSize = _fitSize(
+            _contentRectFor(_viewportSize).size,
+            widget.previewSize,
+          );
+        } else {
+          _baseFittedSize ??= _fitSize(
+            _contentRectFor(_viewportSize).size,
+            widget.previewSize,
+          );
+        }
         final imageRect = _imageRectFor(_viewportSize);
         return Listener(
           onPointerDown: (event) {

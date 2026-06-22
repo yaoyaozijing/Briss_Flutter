@@ -300,6 +300,15 @@ class _SettingsPageState extends State<SettingsPage> {
                     ? _updateAllowCropOutsidePage
                     : null,
               ),
+              SettingsTile.switchTile(
+                initialValue: _groupingSettings.scaleWithWindowResize,
+                leading: const Icon(Icons.fit_screen_outlined),
+                title: Text(l10n.scaleWithWindowResize),
+                description: Text(l10n.scaleWithWindowResizeDescription),
+                onToggle: _groupingSettingsLoaded
+                    ? _updateScaleWithWindowResize
+                    : null,
+              ),
               SettingsTile.navigation(
                 leading: _clearingCache
                     ? const SizedBox(
@@ -427,6 +436,19 @@ class _SettingsPageState extends State<SettingsPage> {
     }
     final nextSettings = _groupingSettings.copyWith(
       allowCropOutsidePage: value,
+    );
+    setState(() {
+      _groupingSettings = nextSettings;
+    });
+    await _appSettingsService.saveGroupingSettings(nextSettings);
+  }
+
+  Future<void> _updateScaleWithWindowResize(bool value) async {
+    if (_groupingSettings.scaleWithWindowResize == value) {
+      return;
+    }
+    final nextSettings = _groupingSettings.copyWith(
+      scaleWithWindowResize: value,
     );
     setState(() {
       _groupingSettings = nextSettings;

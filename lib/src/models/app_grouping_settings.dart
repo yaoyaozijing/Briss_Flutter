@@ -7,6 +7,7 @@ class AppGroupingSettings {
     this.batchCropRecursive = false,
     this.useOriginalFileNameForExport = false,
     this.allowCropOutsidePage = false,
+    this.scaleWithWindowResize = false,
   });
 
   final SmartGroupingLevel defaultSmartGroupingLevel;
@@ -14,6 +15,7 @@ class AppGroupingSettings {
   final bool batchCropRecursive;
   final bool useOriginalFileNameForExport;
   final bool allowCropOutsidePage;
+  final bool scaleWithWindowResize;
 
   AppGroupingSettings copyWith({
     SmartGroupingLevel? defaultSmartGroupingLevel,
@@ -21,6 +23,7 @@ class AppGroupingSettings {
     bool? batchCropRecursive,
     bool? useOriginalFileNameForExport,
     bool? allowCropOutsidePage,
+    bool? scaleWithWindowResize,
   }) {
     return AppGroupingSettings(
       defaultSmartGroupingLevel:
@@ -32,6 +35,8 @@ class AppGroupingSettings {
           useOriginalFileNameForExport ?? this.useOriginalFileNameForExport,
       allowCropOutsidePage:
           allowCropOutsidePage ?? this.allowCropOutsidePage,
+      scaleWithWindowResize:
+          scaleWithWindowResize ?? this.scaleWithWindowResize,
     );
   }
 }

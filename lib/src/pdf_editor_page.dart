@@ -202,6 +202,7 @@ class _PdfEditorPageState extends State<PdfEditorPage> {
             selectedRectIndex: _controller.selectedRectIndex,
             colorScheme: colorScheme,
             allowCropOutsidePage: _groupingSettings.allowCropOutsidePage,
+            scaleWithWindowResize: _groupingSettings.scaleWithWindowResize,
             onRectSelected: _controller.selectRect,
             onRectChanged: _controller.updateSelectedRect,
             onRectCreated: _createRectFromCropEditor,

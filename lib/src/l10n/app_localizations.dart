@@ -452,6 +452,14 @@ class AppLocalizations {
       : (isJa
           ? '有効にすると、トリミング枠をページ外までドラッグでき、ページ周囲に余白が見えるまで縮小できます。'
           : 'When enabled, crop boxes can be dragged outside the page and the view can zoom out enough to leave margins around the page.');
+  String get scaleWithWindowResize => isZh
+      ? '窗口尺寸变化时跟随缩放'
+      : (isJa ? 'ウィンドウサイズ変更時に追従して拡大縮小' : 'Scale With Window Resize');
+  String get scaleWithWindowResizeDescription => isZh
+      ? '开启后，窗口大小变化时页面预览会重新适配当前空间；关闭时保持当前尺寸锁定。'
+      : (isJa
+          ? '有効にすると、ウィンドウサイズの変化に合わせてページプレビューを再フィットします。無効時は現在のサイズ固定を維持します。'
+          : 'When enabled, the page preview refits as the window size changes. When disabled, the current size lock behavior is kept.');
   String get defaultExportMode =>
       isZh ? '默认导出方式' : (isJa ? '既定の書き出し方法' : 'Default Export Mode');
   String get defaultExportModeDescription => isZh
